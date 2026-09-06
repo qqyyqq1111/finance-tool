@@ -121,12 +121,56 @@
                 <button id="f-save" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">保存</button>
             </section>
 
-            <!-- 结算页（批次③实现引擎） -->
-            <section id="page-split" class="hidden p-4">
-                <div class="flex flex-col items-center justify-center text-center py-20">
-                    <span class="text-5xl mb-4">⚖️</span>
-                    <p class="text-slate-700 font-medium">月度结算 · 开发中</p>
-                    <p class="text-sm text-slate-400 mt-1">批次③上线：自定义分摊比例<br>垫付差额自动核算 + 一键锁定</p>
+            <!-- 结算页（批次③，07-PRD §6.3） -->
+            <section id="page-split" class="hidden p-4 space-y-4">
+
+                <!-- 月份切换 + 状态 -->
+                <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
+                    <button id="s-month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <div class="text-center">
+                        <p id="s-month-label" class="font-semibold text-slate-800">—</p>
+                        <p id="s-status" class="text-xs text-slate-400 mt-0.5">—</p>
+                    </div>
+                    <button id="s-month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                </div>
+
+                <!-- 结算结果大字卡片 -->
+                <div class="bg-gradient-to-br from-indigo-500 to-violet-500 rounded-2xl p-5 text-white shadow-md shadow-indigo-100">
+                    <div id="s-result-body"></div>
+                </div>
+
+                <!-- 构成明细（折叠） -->
+                <div>
+                    <button id="s-detail-toggle" class="w-full flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600">
+                        <span>构成明细（仅公开且参与分摊的支出）</span>
+                        <span id="s-detail-arrow">▾</span>
+                    </button>
+                    <div id="s-detail-list" class="hidden mt-2 space-y-2"></div>
+                </div>
+
+                <!-- 操作区 -->
+                <button id="s-confirm" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">确认结算</button>
+                <div id="s-confirmed-actions" class="hidden grid grid-cols-2 gap-2">
+                    <button id="s-settled-btn" class="bg-emerald-500 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">标记已结清</button>
+                    <button id="s-void-btn" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">作废结算</button>
+                </div>
+
+                <!-- 分摊规则（改动只对新账目生效，07-PRD §6.1） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 class="font-semibold text-slate-800 text-sm">分摊比例</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5 mb-3">改动只对新账目生效，不追溯已记账目</p>
+                    <p id="s-ratio-text" class="text-center text-sm font-medium text-indigo-600 mb-2">50% : 50%</p>
+                    <input id="s-ratio" type="range" min="10" max="90" step="5" value="50" class="w-full accent-indigo-500">
+                    <div class="mt-3 border-t border-slate-100 pt-2">
+                        <p class="text-[11px] text-slate-400 mb-1">按分类覆盖（拖动即保存，拖回原值=取消覆盖）</p>
+                        <div id="s-overrides"></div>
+                    </div>
+                </div>
+
+                <!-- 历史结算 -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 class="font-semibold text-slate-800 text-sm mb-2">历史结算</h3>
+                    <div id="s-history" class="space-y-2"></div>
                 </div>
             </section>
 
@@ -305,6 +349,7 @@
 
 <script src="js/db.js"></script>
 <script src="js/privacy.js"></script>
+<script src="js/split.js"></script>
 <script src="js/ledger.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/app.js"></script>

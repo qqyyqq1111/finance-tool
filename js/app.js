@@ -5,7 +5,7 @@
  *  - 三步初始化向导（07-PRD §2.4）
  *  - 身份切换装配（实现在 settings.js）
  * ============================================================ */
-(function () {
+(function (global) {
   'use strict';
 
   var PAGES = ['ledger', 'add', 'split', 'dashboard', 'settings'];
@@ -13,12 +13,13 @@
   /* ---------------- Toast ---------------- */
 
   var toastTimer = null;
-  window.toast = function (msg) {
+  global.toast = function (msg, type) {
     var el = document.getElementById('toast');
     el.textContent = msg;
-    el.classList.remove('hidden');
+    el.classList.remove('hidden', 'bg-slate-800', 'bg-emerald-500');
+    el.classList.add(type === 'success' ? 'bg-emerald-500' : 'bg-slate-800');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 1800);
+    toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2600); // v1.0.1：1800→2600ms
   };
 
   /* ---------------- Tab 路由 ---------------- */
@@ -40,6 +41,7 @@
     if (name === 'dashboard' && window.dashUI) dashUI.render();
     if (window.applyTier) applyTier();
   }
+  window.showPage = showPage; // v1.0.1 修复：ledger.js 编辑/保存流程依赖全局跳页
 
   /* ---------------- 版本门控（07-PRD §9 商业化分层模拟） ---------------- */
 
@@ -76,6 +78,7 @@
     settingsUI.renderCategories();
     settingsUI.renderTier();
     if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
+    if (window.settingsUI && settingsUI.renderIdentityLock) settingsUI.renderIdentityLock();
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
     if (window.dashUI) dashUI.render();       // 看板按新身份刷新
@@ -232,4 +235,4 @@
   }
 
   document.addEventListener('DOMContentLoaded', boot);
-})();
+})(window);

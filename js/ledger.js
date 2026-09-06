@@ -49,6 +49,13 @@
     return p[0] + '年' + Number(p[1]) + '月';
   }
 
+  /** R13：月份是否已被"确认结算"锁定（禁增改删） */
+  function isMonthLocked(month) {
+    return (fcDb.settlements.list() || []).some(function (s) {
+      return s.month === month && s.status === 'confirmed';
+    });
+  }
+
   /* ================= 明细列表（07-PRD §4.2） ================= */
 
   L.renderLedger = function () {
@@ -86,6 +93,17 @@
     var totals = fcPrivacy.monthTotals(txs, viewer, currentMonth);
     $('month-income').textContent = fmt(totals.income, true);
     $('month-expense').textContent = fmt(-totals.expense, true);
+
+    /* --- R13：锁定月份提示条 --- */
+    var oldBanner = document.getElementById('month-lock-banner');
+    if (oldBanner) oldBanner.remove();
+    if (isMonthLocked(currentMonth)) {
+      var banner = document.createElement('div');
+      banner.id = 'month-lock-banner';
+      banner.className = 'flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl px-3 py-2.5 text-xs';
+      banner.innerHTML = '<span class="text-base leading-none">🔒</span><span>本月已确认结算、账目已锁定；如需补充修改，请到"结算"页作废本月结算</span>';
+      $('tx-list').parentNode.insertBefore(banner, $('tx-list'));
+    }
 
     /* --- 列表：可读交易 + 私密占位行合并按日期倒序 --- */
     var mv = fcPrivacy.monthView(txs, viewer, currentMonth);
@@ -178,16 +196,20 @@
 
   function deleteDetail() {
     if (!detailId) return;
+    var t = fcDb.tx.list().filter(function (x) { return x.id === detailId; })[0];
+    if (t && isMonthLocked(t.date.slice(0, 7))) { global.toast('该月已确认结算锁定，请先到结算页作废'); return; }
     if (!global.confirm('确定删除这笔账目吗？删除后不可恢复。')) return;
     var r = fcDb.tx.remove(detailId);
     L.closeDetail();
     if (!r.ok) { global.toast(r.errors[0]); return; }
-    global.toast('已删除');
+    global.toast('已删除', 'success');
     L.renderLedger();
   }
 
   function editDetail() {
     if (!detailId) return;
+    var t = fcDb.tx.list().filter(function (x) { return x.id === detailId; })[0];
+    if (t && isMonthLocked(t.date.slice(0, 7))) { global.toast('该月已确认结算锁定，请先到结算页作废'); return; }
     L.loadForEdit(detailId);
     L.closeDetail();
   }
@@ -209,15 +231,20 @@
   }
 
   function renderPrivacySeg() {
+    // R4：私密 vs 小金库用具体生活场景讲清楚——核心区别是"对方知不知道你花了这笔钱"
     var hints = {
-      public: '双方都可见，参与共同分摊结算',
-      private: '对方只知道有这笔记录存在，看不到金额和内容',
-      vault: '对方完全不知道这笔记录存在，只出现在我的小金库里'
+      public: '🌐 公开账：双方都看得到金额和内容，参与共同分摊（如：一起吃火锅、交房租）',
+      private: '🔒 私密账：对方知道你花了钱（会看到一条"有1笔私密记录"占位行），但看不到金额和买了什么（如：给妈妈买礼物、和朋友的聚餐）',
+      vault: '💰 小金库：完全独立的私人账户，对方不知道它存在、看不到任何痕迹，也不进任何统计（如：私房钱、秘密储蓄计划）'
     };
     document.querySelectorAll('.f-privacy-btn').forEach(function (b) {
       segStyle(b, b.getAttribute('data-v') === form.privacy);
     });
-    $('f-privacy-hint').textContent = hints[form.privacy];
+    var hintBox = $('f-privacy-hint');
+    hintBox.textContent = hints[form.privacy];
+    hintBox.className = form.privacy === 'public'
+      ? 'text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed'
+      : 'text-xs text-indigo-600 bg-indigo-50 rounded-xl px-3 py-2 leading-relaxed';
     renderSharedRow();
   }
 
@@ -314,8 +341,15 @@
     var amountYuan = parseFloat($('f-amount').value);
     if (!(amountYuan > 0)) { global.toast('请输入正确的金额'); return; }
     if (!form.categoryId) { global.toast('请选择分类'); return; }
+    var dateVal = $('f-date').value || today();
+    // R13：账目所属月已确认结算 → 友好提示（数据层也会兜底拦截）
+    var txMonth = dateVal.slice(0, 7);
+    var editing = null;
+    if (form.editingId) editing = fcDb.tx.list().filter(function (x) { return x.id === form.editingId; })[0];
+    var lockMonth = editing ? editing.date.slice(0, 7) : txMonth;
+    if (isMonthLocked(lockMonth)) { global.toast('' + monthLabel(lockMonth) + '已确认结算锁定；请到"结算"页作废后再修改'); return; }
     var data = {
-      date: $('f-date').value || today(),
+      date: dateVal,
       type: form.type,
       amount: Math.round(amountYuan * 100), // 元 → 分（07-PRD §2.2）
       categoryId: form.categoryId,

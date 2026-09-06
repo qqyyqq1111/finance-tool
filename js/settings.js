@@ -536,7 +536,91 @@
     document.getElementById('crypto-sheet-mask').addEventListener('click', S.closeCryptoSheet);
     document.getElementById('crypto-cancel').addEventListener('click', S.closeCryptoSheet);
     document.getElementById('crypto-confirm').addEventListener('click', S.confirmCryptoSheet);
+
+    bindCloud(); // v1.1 云同步（批次⑥）
   };
+
+  /* ---------------- 云同步（v1.1 批次⑥：账号认证；配对/同步在批次⑦⑧） ----------------
+   * 三态：云服务不可用（未配置/CDN失败）→ 未登录 → 已登录
+   * 登录态由 app.js boot 中 cloud.onAuthChange 回调统一驱动，UI 不自行拉取。 */
+
+  var cloudUser = null;
+  var authMode = 'signin'; // signin | signup
+  var cloudBound = false;
+
+  S.setCloudUser = function (user) { cloudUser = user; S.renderCloud(); };
+
+  S.renderCloud = function () {
+    if (typeof global.cloud === 'undefined') return;
+    var avail = global.cloud.available();
+    var badge = document.getElementById('cloud-badge');
+    document.getElementById('cloud-unavailable').classList.toggle('hidden', avail);
+    document.getElementById('cloud-signedout').classList.toggle('hidden', !avail || !!cloudUser);
+    document.getElementById('cloud-signedin').classList.toggle('hidden', !avail || !cloudUser);
+    if (!avail) { badge.textContent = ''; return; }
+    if (cloudUser) {
+      badge.textContent = '已登录';
+      badge.className = 'text-[10px] font-normal ml-1 text-emerald-500';
+      document.getElementById('cloud-email').textContent = cloudUser.email || '';
+    } else {
+      badge.textContent = '未登录';
+      badge.className = 'text-[10px] font-normal ml-1 text-slate-400';
+    }
+  };
+
+  function openAuth(mode) {
+    authMode = mode || 'signin';
+    document.getElementById('auth-title').textContent = authMode === 'signin' ? '登录云同步' : '注册云同步';
+    document.getElementById('auth-submit').textContent = authMode === 'signin' ? '登录' : '注册';
+    document.getElementById('auth-switch').textContent = authMode === 'signin' ? '没有账号？点此注册' : '已有账号？点此登录';
+    document.getElementById('auth-err').textContent = '';
+    document.getElementById('auth-mask').classList.remove('hidden');
+    setTimeout(function () { document.getElementById('auth-email').focus(); }, 80);
+  }
+  S.closeAuth = function () { document.getElementById('auth-mask').classList.add('hidden'); };
+
+  S.submitAuth = function () {
+    var email = document.getElementById('auth-email').value;
+    var pwd = document.getElementById('auth-password').value;
+    var errEl = document.getElementById('auth-err');
+    var btn = document.getElementById('auth-submit');
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.classList.add('opacity-60');
+    var p = authMode === 'signin' ? global.cloud.signIn(email, pwd) : global.cloud.signUp(email, pwd);
+    p.then(function (r) {
+      btn.disabled = false;
+      btn.classList.remove('opacity-60');
+      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      S.closeAuth();
+      toast(authMode === 'signup' ? '注册成功' : '登录成功', 'success');
+      // 登录态变化由 cloud.onAuthChange 回调驱动 renderCloud，此处不直接渲染
+    });
+  };
+
+  S.signOutCloud = function () {
+    global.cloud.signOut().then(function (r) {
+      toast(r.ok ? '已退出登录，本机数据保留' : (r.errors[0] || '退出失败'));
+    });
+  };
+
+  function bindCloud() {
+    if (cloudBound) return;
+    cloudBound = true;
+    document.getElementById('btn-cloud-auth').addEventListener('click', function () { openAuth('signin'); });
+    document.getElementById('btn-cloud-signout').addEventListener('click', S.signOutCloud);
+    document.getElementById('auth-close').addEventListener('click', S.closeAuth);
+    document.getElementById('auth-mask').addEventListener('click', function (e) {
+      if (e.target === this) S.closeAuth(); // 点遮罩空白处关闭
+    });
+    document.getElementById('auth-switch').addEventListener('click', function () {
+      openAuth(authMode === 'signin' ? 'signup' : 'signin');
+    });
+    document.getElementById('auth-submit').addEventListener('click', S.submitAuth);
+    document.getElementById('auth-password').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') S.submitAuth();
+    });
+  }
 
   global.settingsUI = S;
 })(window);

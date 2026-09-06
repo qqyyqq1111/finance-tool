@@ -26,6 +26,24 @@
             </div>
         </div>
 
+        <!-- 云账号登录/注册弹层（v1.1 批次⑥：认证；配对与同步在后续批次） -->
+        <div id="auth-mask" class="hidden fixed inset-0 z-[70] bg-slate-900/50 flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 id="auth-title" class="font-semibold text-slate-800">登录云同步</h2>
+                    <button id="auth-close" class="text-slate-400 text-sm px-2 py-0.5 active:opacity-60">取消</button>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">两台手机登录同一账号后，账目会自动加密同步。云端只存密文，即使服务器被看也读不出内容。</p>
+                <input id="auth-email" type="email" autocomplete="username" placeholder="邮箱地址"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
+                <input id="auth-password" type="password" autocomplete="current-password" placeholder="密码（至少 6 位）"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
+                <p id="auth-err" class="text-xs text-rose-500 min-h-[1rem] leading-relaxed"></p>
+                <button id="auth-submit" class="w-full bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium active:opacity-80">登录</button>
+                <button id="auth-switch" class="w-full text-xs text-indigo-600 py-1 active:opacity-60">没有账号？点此注册</button>
+            </div>
+        </div>
+
         <!-- 顶部栏 -->
         <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100">
             <div class="flex items-center justify-between px-4 h-14">
@@ -273,6 +291,26 @@
                     </button>
                 </div>
 
+                <!-- 云同步（v1.1：双人跨设备，端到端加密；批次⑥先上账号认证） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">☁️ 双人云同步 <span id="cloud-badge" class="text-[10px] font-normal ml-1 text-slate-400"></span></h2>
+                    <!-- 态1：云服务未配置（CDN 失败或部署时未填 Supabase 配置） -->
+                    <div id="cloud-unavailable" class="hidden">
+                        <p class="text-xs text-slate-400 leading-relaxed">云同步将在 v1.1 开放：两人各用自己的手机登录同一账号，账目自动加密同步，云端只存密文。当前为单机模式，数据仅保存在本设备。</p>
+                    </div>
+                    <!-- 态2：已配置但未登录 -->
+                    <div id="cloud-signedout" class="hidden">
+                        <p class="text-xs text-slate-400 mb-3 leading-relaxed">登录账号后，两台手机的账目将自动加密同步。数据在上传前已在本机加密，云端只存密文。</p>
+                        <button id="btn-cloud-auth" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">登录 / 注册</button>
+                    </div>
+                    <!-- 态3：已登录（配对入口在批次⑦） -->
+                    <div id="cloud-signedin" class="hidden">
+                        <p class="text-xs text-slate-500 mb-1">已登录：<span id="cloud-email" class="font-medium text-slate-700"></span></p>
+                        <p id="cloud-pair-hint" class="text-xs text-slate-400 mb-3">双人配对与自动同步即将开放，当前登录态已为同步做好准备。</p>
+                        <button id="btn-cloud-signout" class="w-full bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">退出登录（保留本机数据）</button>
+                    </div>
+                </div>
+
                 <!-- 分类管理（会员功能） -->
                 <div id="cat-manage-card" class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">分类管理</h2>
@@ -337,7 +375,7 @@
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
                     <ul class="text-xs text-slate-500 space-y-1.5">
-                        <li>版本：v1.0.2（记账+三层隐私+身份锁+分摊结算+仪表盘+加密）</li>
+                        <li>版本：v1.1.0 开发中（v1.0 全部功能 + 双人云同步分批上线）</li>
                         <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
                         <li>开源致谢：分摊算法思路参考 <span class="text-indigo-500">spliit</span>（MIT License）</li>
                         <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
@@ -567,13 +605,16 @@
     </div>
 </div>
 
-<script src="js/db.js?v=1.0.4"></script>
-<script src="js/crypto.js?v=1.0.4"></script>
-<script src="js/privacy.js?v=1.0.4"></script>
-<script src="js/ledger.js?v=1.0.4"></script>
-<script src="js/split.js?v=1.0.4"></script>
-<script src="js/dashboard.js?v=1.0.4"></script>
-<script src="js/settings.js?v=1.0.4"></script>
-<script src="js/app.js?v=1.0.4"></script>
+<!-- Supabase 云服务（v1.1；加载失败不阻塞单机模式，cloud.available() 自动降级） -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/db.js?v=1.1.0"></script>
+<script src="js/cloud.js?v=1.1.0"></script>
+<script src="js/crypto.js?v=1.1.0"></script>
+<script src="js/privacy.js?v=1.1.0"></script>
+<script src="js/ledger.js?v=1.1.0"></script>
+<script src="js/split.js?v=1.1.0"></script>
+<script src="js/dashboard.js?v=1.1.0"></script>
+<script src="js/settings.js?v=1.1.0"></script>
+<script src="js/app.js?v=1.1.0"></script>
 </body>
 </html>

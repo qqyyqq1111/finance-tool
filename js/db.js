@@ -9,10 +9,11 @@
 (function (global) {
   'use strict';
 
-  var SCHEMA_VERSION = 1;
+  var SCHEMA_VERSION = 2;
 
   var KEYS = {
     version:      'fc_schema_version',
+    device:       'fc_device_id',
     settings:     'fc_settings',
     categories:   'fc_categories',
     accounts:     'fc_accounts',
@@ -81,6 +82,35 @@
     return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
+  /* ---------------- v1.1 同步字段（schema v2，09-PRD §5.1） ----------------
+   * 每条可同步记录带：updatedAt(LWW时间戳) / deviceId(写入设备) / deleted(墓碑) / _sync(dirty|clean)
+   * deviceId 标识"本安装实例"，迁移/写入时自动补齐；同步引擎 sync.js 按 _sync 推云端。 */
+
+  function getDeviceId() {
+    var d = rawRead('device');
+    if (d && typeof d === 'string') return d;
+    d = 'dev_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    rawWrite('device', d);
+    return d;
+  }
+
+  /** 纯函数：给单条记录补同步字段（幂等，已存在不覆盖） */
+  function stampSyncV2(rec, deviceId, now) {
+    if (!rec || typeof rec !== 'object') return rec;
+    if (typeof rec.updatedAt !== 'number') rec.updatedAt = typeof rec.createdAt === 'number' ? rec.createdAt : now;
+    if (!rec.deviceId) rec.deviceId = deviceId;
+    if (typeof rec.deleted !== 'boolean') rec.deleted = false;
+    if (rec._sync !== 'clean') rec._sync = 'dirty'; // 存量/新记录首次联网全量上传
+    return rec;
+  }
+
+  /** 纯函数：迁移一个集合（返回新数组，仅补字段不改业务数据） */
+  function migrateCollectionV2(list, deviceId, now) {
+    if (!Array.isArray(list)) return list;
+    list.forEach(function (rec) { stampSyncV2(rec, deviceId, now); });
+    return list;
+  }
+
   /* ---------------- schema 迁移 ---------------- */
 
   function migrate() {
@@ -89,8 +119,23 @@
       write('version', SCHEMA_VERSION);
       return;
     }
-    // 迁移链（后续版本在此追加）：v<2 时执行 xx 迁移……
-    if (v < SCHEMA_VERSION) {
+    // 迁移链：v1 → v2（同步字段补齐）
+    if (v < 2) {
+      var deviceId = getDeviceId();
+      var now = Date.now();
+      // 加密态未解锁时 read 返回空——迁移改在解锁 setSession 后补做（见 _cryptoBridge.setSession）
+      if (!encryptionOn() || sessionCache) {
+        // 注意：read() 每次都重新反序列化，必须先取引用、补齐、再写回同一数组
+        var txs = read('transactions') || [];
+        var sts = read('settlements') || [];
+        var cats = read('categories') || [];
+        migrateCollectionV2(txs, deviceId, now);
+        migrateCollectionV2(sts, deviceId, now);
+        migrateCollectionV2(cats, deviceId, now);
+        write('transactions', txs);
+        write('settlements', sts);
+        write('categories', cats);
+      }
       write('version', SCHEMA_VERSION);
     }
   }
@@ -141,7 +186,13 @@
       createdAt: now,
       updatedAt: now
     });
-    write('categories', PRESET_CATEGORIES);
+    // 预置分类打同步字段（内容固定双方自带、不推送；hidden 状态变更置 dirty 后同步）
+    var presetCats = PRESET_CATEGORIES.map(function (c) {
+      return { id: c.id, name: c.name, icon: c.icon, type: c.type, builtin: true,
+               hidden: false, createdAt: now, updatedAt: now, deviceId: getDeviceId(),
+               deleted: false, _sync: 'clean' };
+    });
+    write('categories', presetCats);
     write('accounts', [
       { id: 'acc_common',   name: '共同账户', type: 'shared', ownerId: null },
       { id: 'acc_vault_m1', name: members[0].name + '的小金库', type: 'vault', ownerId: 'm1' },
@@ -296,7 +347,10 @@
         createdAt: Date.now(),
         confirmedAt: Date.now(),
         settledAt: null,
-        voidedAt: null
+        voidedAt: null,
+        deviceId: getDeviceId(),
+        deleted: false,
+        _sync: 'dirty'
       };
       var list = read('settlements') || [];
       list.push(rec);
@@ -314,6 +368,9 @@
       rec.status = status;
       if (status === 'settled') rec.settledAt = Date.now();
       if (status === 'void') rec.voidedAt = Date.now();
+      rec.updatedAt = Date.now();
+      rec.deviceId = getDeviceId();
+      rec._sync = 'dirty';
       write('settlements', list);
       return { ok: true, record: rec };
     }
@@ -361,7 +418,10 @@
           : false,
         note: (data.note || '').slice(0, 50),
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        deviceId: getDeviceId(),
+        deleted: false,
+        _sync: 'dirty'
       };
       var err = validateTx(rec);
       if (err) return { ok: false, errors: [err] };
@@ -460,7 +520,11 @@
         type: data.type,
         builtin: false,
         hidden: false,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        deviceId: getDeviceId(),
+        deleted: false,
+        _sync: 'dirty'
       };
       cats.push(rec);
       write('categories', cats);
@@ -473,6 +537,9 @@
       var c = cats.filter(function (x) { return x.id === id; })[0];
       if (!c) return { ok: false, errors: ['分类不存在'] };
       c.hidden = !!hidden;
+      c.updatedAt = Date.now();
+      c.deviceId = getDeviceId();
+      c._sync = 'dirty';
       write('categories', cats);
       return { ok: true };
     },
@@ -544,11 +611,18 @@
     obj.data.settings.encryptionEnabled = false;
     sessionCache = null;
     rawRemove('cryptoMeta');
+    // 导入数据补 v2 同步字段并强制标 dirty（恢复到本设备后需重新推送云端合并，09-PRD §6）
+    var importDevice = getDeviceId(), importNow = Date.now();
+    [obj.data.transactions || [], obj.data.settlements || [], obj.data.categories || []].forEach(function (list) {
+      migrateCollectionV2(list, importDevice, importNow);
+      list.forEach(function (rec) { rec._sync = 'dirty'; });
+    });
     rawWrite('settings', obj.data.settings);
     rawWrite('categories', obj.data.categories);
     rawWrite('accounts', obj.data.accounts);
     rawWrite('transactions', obj.data.transactions);
     rawWrite('settlements', obj.data.settlements);
+    rawWrite('version', SCHEMA_VERSION);
     return { ok: true, reload: true };
   }
 
@@ -605,10 +679,28 @@
     importAll: importAll,
     resetAll: resetAll,
     healthCheck: healthCheck,
+    /* v1.1 同步基础设施（09-PRD §5.1；sync.js 批次⑧使用） */
+    getDeviceId: getDeviceId,
+    stampSyncV2: stampSyncV2,
+    migrateCollectionV2: migrateCollectionV2,
     /* 加密桥接原语（供 crypto.js 使用，业务代码勿直接调用） */
     _cryptoBridge: {
       isOn: encryptionOn,
-      setSession: function (cache) { sessionCache = cache; },
+      setSession: function (cache) {
+        sessionCache = cache;
+        // 解锁后补做 v1→v2 迁移（加密态 migrate() 时明文尚在密文里，读不到）
+        var v = rawRead('version');
+        if (v !== null && v < 2) {
+          var deviceId = getDeviceId(), now = Date.now();
+          migrateCollectionV2(sessionCache.transactions || [], deviceId, now);
+          migrateCollectionV2(sessionCache.settlements || [], deviceId, now);
+          var cats = rawRead('categories') || [];
+          migrateCollectionV2(cats, deviceId, now);
+          rawWrite('categories', cats);
+          if (global.fcCrypto && global.fcCrypto.persistSoon) global.fcCrypto.persistSoon();
+          rawWrite('version', SCHEMA_VERSION);
+        }
+      },
       clearSession: function () { sessionCache = null; },
       getSession: function () { return sessionCache; },
       rawRead: rawRead,

@@ -85,6 +85,7 @@
     settingsUI.renderTier();
     if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
     if (window.settingsUI && settingsUI.renderIdentityLock) settingsUI.renderIdentityLock();
+    if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
     if (window.dashUI) dashUI.render();       // 看板按新身份刷新
@@ -217,6 +218,13 @@
     if (window.splitUI) splitUI.bind();
     if (window.dashUI) dashUI.bind();
     bindWizard();
+
+    // v1.1 云认证：登录态变化驱动设置页云卡片（未配置时回调 null，自动显示单机态）
+    if (window.cloud) {
+      cloud.onAuthChange(function (user) {
+        if (window.settingsUI && settingsUI.setCloudUser) settingsUI.setCloudUser(user);
+      });
+    }
 
     // 加密解锁遮罩
     document.getElementById('lock-unlock').addEventListener('click', doUnlock);

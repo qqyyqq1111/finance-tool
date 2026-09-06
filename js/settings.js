@@ -19,7 +19,7 @@
     document.getElementById('viewer-name').textContent = me.name;
   };
 
-  /** 设置页「双人身份」卡片 */
+  /** 设置页「双人身份」卡片（点击切换身份；铅笔编辑资料） */
   S.renderMemberCards = function () {
     var s = fcDb.getSettings();
     if (!s) return;
@@ -27,15 +27,62 @@
     box.innerHTML = '';
     s.members.forEach(function (m) {
       var active = m.id === s.currentViewer;
-      var btn = document.createElement('button');
-      btn.className = 'rounded-2xl border p-4 text-left transition ' +
+      var btn = document.createElement('div');
+      btn.className = 'rounded-2xl border p-4 text-left transition relative cursor-pointer ' +
         (active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50');
       btn.innerHTML =
         '<span class="text-3xl">' + m.emoji + '</span>' +
-        '<p class="mt-1 font-medium text-slate-800">' + m.name + (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>' : '') + '</p>';
+        '<p class="mt-1 font-medium text-slate-800">' + m.name + (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>' : '') + '</p>' +
+        '<button class="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '">✏️ 编辑</button>';
       btn.addEventListener('click', function () { S.switchViewer(m.id); });
+      var edit = btn.querySelector('[data-edit]');
+      edit.addEventListener('click', function (e) {
+        e.stopPropagation();
+        S.openMemberSheet(m.id);
+      });
       box.appendChild(btn);
     });
+  };
+
+  /* ---------------- 成员编辑（07-PRD §8：可改名/emoji，不可增删） ---------------- */
+
+  var EDIT_EMOJIS = ['🧑', '👩', '👨', '👱‍♀️', '🧔', '👩‍🦱', '🦰', '🐰', '🐱', '🐶'];
+  var editingMemberId = null;
+  var editingEmoji = null;
+
+  S.openMemberSheet = function (memberId) {
+    var m = fcDb.findMember(memberId);
+    if (!m) return;
+    editingMemberId = memberId;
+    editingEmoji = m.emoji;
+    document.getElementById('m-name').value = m.name;
+    var row = document.getElementById('m-emoji-row');
+    row.innerHTML = '';
+    EDIT_EMOJIS.forEach(function (e) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'w-9 h-9 rounded-xl border text-xl flex items-center justify-center ' +
+        (e === editingEmoji ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200');
+      b.textContent = e;
+      b.addEventListener('click', function () { editingEmoji = e; S.openMemberSheet(editingMemberId); });
+      row.appendChild(b);
+    });
+    document.getElementById('member-sheet').classList.remove('hidden');
+  };
+
+  S.closeMemberSheet = function () {
+    document.getElementById('member-sheet').classList.add('hidden');
+    editingMemberId = null;
+  };
+
+  S.saveMember = function () {
+    if (!editingMemberId) return;
+    var name = document.getElementById('m-name').value.trim();
+    var r = fcDb.updateMember(editingMemberId, { name: name, emoji: editingEmoji });
+    if (!r.ok) { global.toast(r.errors[0]); return; }
+    global.toast('已保存');
+    S.closeMemberSheet();
+    global.renderAll();
   };
 
   /** 底部弹层选项 */
@@ -150,6 +197,118 @@
     location.reload();
   };
 
+  /* ---------------- 分类管理（07-PRD §8：预置可隐藏不可删；自定义≤12） ---------------- */
+
+  S.renderCategories = function () {
+    var box = document.getElementById('cat-list');
+    if (!box) return;
+    box.innerHTML = '';
+    fcDb.categoriesList().forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 py-1.5 text-sm ' + (c.hidden ? 'opacity-40' : '');
+      row.innerHTML =
+        '<span class="text-lg w-6 text-center">' + c.icon + '</span>' +
+        '<span class="flex-1 text-slate-700">' + c.name +
+        '<span class="text-[10px] text-slate-400 ml-1">' + (c.type === 'expense' ? '支出' : '收入') + (c.builtin ? ' · 预置' : ' · 自定义') + '</span></span>' +
+        (c.builtin
+          ? '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>'
+          : '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>' +
+            '<button class="text-[11px] text-rose-400 underline" data-del>删除</button>');
+      row.querySelector('[data-hide]').addEventListener('click', function () {
+        var r = fcDb.categories.setHidden(c.id, !c.hidden);
+        if (!r.ok) { global.toast(r.errors[0]); return; }
+        global.toast(c.hidden ? '已恢复' : '已隐藏（不影响历史账目）');
+        global.renderAll();
+      });
+      var del = row.querySelector('[data-del]');
+      if (del) del.addEventListener('click', function () {
+        var r = fcDb.categories.remove(c.id);
+        if (!r.ok) { global.toast(r.errors[0]); return; }
+        global.toast('已删除');
+        global.renderAll();
+      });
+      box.appendChild(row);
+    });
+  };
+
+  S.addCategory = function () {
+    var name = document.getElementById('cat-name').value.trim();
+    var type = document.querySelector('.cat-type-btn.active') ? document.querySelector('.cat-type-btn.active').getAttribute('data-v') : 'expense';
+    var r = fcDb.categories.add({ name: name, type: type });
+    if (!r.ok) { global.toast(r.errors[0]); return; }
+    document.getElementById('cat-name').value = '';
+    global.toast('分类已添加');
+    global.renderAll();
+  };
+
+  /* ---------------- CSV 导出（仅当前查看人可见交易，07-PRD §5.3/§8） ---------------- */
+
+  function csvCell(v) {
+    return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  }
+
+  S.exportCsv = function () {
+    var s = fcDb.getSettings();
+    if (!s) return;
+    var viewer = s.currentViewer;
+    var visible = fcPrivacy.view(fcDb.tx.list(), viewer).visible; // 本人可见（含自己的私密/小金库），对方私密/小金库自动排除
+    var cats = {};
+    fcDb.categoriesList().forEach(function (c) { cats[c.id] = c; });
+    var lines = ['日期,类型,分类,金额(元),归属人,隐私层级,参与分摊,备注'];
+    visible.forEach(function (t) {
+      var m = fcDb.findMember(t.ownerId);
+      var c = cats[t.categoryId] || { name: '未知' };
+      lines.push([
+        csvCell(t.date),
+        csvCell(t.type === 'income' ? '收入' : '支出'),
+        csvCell(c.name),
+        (t.amount / 100).toFixed(2),
+        csvCell(m ? m.name : '?'),
+        csvCell(fcPrivacy.label[t.privacy] || t.privacy),
+        csvCell(t.shared ? '是' : '否'),
+        csvCell(t.note || '')
+      ].join(','));
+    });
+    var blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }); // BOM 防 Excel 中文乱码
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'finance-couple-' + (fcDb.findMember(viewer) || { name: '' }).name + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    global.toast('已导出 ' + visible.length + ' 笔可见账目（CSV）');
+  };
+
+  /* ---------------- 版本模式（07-PRD §9 商业化分层模拟） ---------------- */
+
+  S.renderTier = function () {
+    var s = fcDb.getSettings();
+    if (!s) return;
+    var isFamily = s.tier !== 'free';
+    document.getElementById('tier-family').className =
+      'flex-1 rounded-xl py-2.5 text-sm font-medium transition ' +
+      (isFamily ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500');
+    document.getElementById('tier-free').className =
+      'flex-1 rounded-xl py-2.5 text-sm font-medium transition ' +
+      (!isFamily ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500');
+    global.applyTier && global.applyTier();
+  };
+
+  S.setTier = function (tier) {
+    var r = fcDb.setTier(tier);
+    if (!r.ok) { global.toast(r.errors[0]); return; }
+    global.toast(tier === 'family' ? '已切换为家庭会员版（全功能）' : '已切换为免费版（双人功能已锁定）');
+    global.renderAll();
+  };
+
+  S.openUpgrade = function () {
+    document.getElementById('upgrade-sheet').classList.remove('hidden');
+  };
+  S.closeUpgrade = function () {
+    document.getElementById('upgrade-sheet').classList.add('hidden');
+  };
+
   /* ---------------- 装配 ---------------- */
 
   S.bind = function () {
@@ -163,6 +322,36 @@
     document.getElementById('btn-seed').addEventListener('click', S.seedDemo);
     document.getElementById('btn-check').addEventListener('click', S.healthCheck);
     document.getElementById('btn-reset').addEventListener('click', S.resetAll);
+
+    // 成员编辑弹层
+    document.getElementById('member-sheet-mask').addEventListener('click', S.closeMemberSheet);
+    document.getElementById('m-cancel').addEventListener('click', S.closeMemberSheet);
+    document.getElementById('m-save').addEventListener('click', S.saveMember);
+
+    // 分类管理
+    document.getElementById('cat-add').addEventListener('click', S.addCategory);
+    document.querySelectorAll('.cat-type-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('.cat-type-btn').forEach(function (x) {
+          x.classList.remove('active', 'border-indigo-500', 'bg-indigo-50', 'text-indigo-600');
+          x.classList.add('border-slate-200', 'text-slate-600');
+        });
+        b.classList.add('active', 'border-indigo-500', 'bg-indigo-50', 'text-indigo-600');
+        b.classList.remove('border-slate-200', 'text-slate-600');
+      });
+    });
+
+    // CSV 导出
+    document.getElementById('btn-csv').addEventListener('click', S.exportCsv);
+
+    // 版本模式
+    document.getElementById('tier-family').addEventListener('click', function () { S.setTier('family'); });
+    document.getElementById('tier-free').addEventListener('click', function () { S.setTier('free'); });
+    document.getElementById('upgrade-sheet-mask').addEventListener('click', S.closeUpgrade);
+    document.getElementById('upgrade-unlock').addEventListener('click', function () {
+      S.setTier('family');
+      S.closeUpgrade();
+    });
   };
 
   global.settingsUI = S;

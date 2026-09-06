@@ -34,10 +34,36 @@
       btn.classList.toggle('font-semibold', active);
       btn.classList.toggle('text-slate-400', !active);
     });
-    // 明细/结算页每次进入都重渲染（数据可能已变化）
+    // 明细/结算/看板页每次进入都重渲染（数据可能已变化）
     if (name === 'ledger' && window.ledger) ledger.renderLedger();
     if (name === 'split' && window.splitUI) splitUI.render();
+    if (name === 'dashboard' && window.dashUI) dashUI.render();
+    if (window.applyTier) applyTier();
   }
+
+  /* ---------------- 版本门控（07-PRD §9 商业化分层模拟） ---------------- */
+
+  /** 免费版隐藏付费功能入口；家庭会员版全功能 */
+  window.applyTier = function () {
+    var s = fcDb.getSettings();
+    if (!s) return;
+    var isFamily = s.tier !== 'free';
+    var toggle = function (el, familyOnly) {
+      if (!el) return;
+      el.classList.toggle('hidden', !isFamily && familyOnly);
+    };
+    toggle(document.getElementById('viewer-chip'), true);          // 身份切换
+    toggle(document.getElementById('vault-card'), true);           // 小金库卡（明细页）
+    toggle(document.getElementById('f-privacy-block'), true);      // 隐私层级选择（锁public）
+    toggle(document.getElementById('d-duo'), true);                // 双人对比卡
+    toggle(document.getElementById('d-vault-card'), true);         // 看板小金库卡
+    toggle(document.getElementById('btn-csv'), true);              // CSV导出
+    toggle(document.getElementById('cat-manage-card'), true);      // 分类管理（会员）
+    var splitTab = document.querySelector('.nav-btn[data-tab="split"]');
+    if (splitTab) splitTab.classList.toggle('hidden', !isFamily);  // 结算Tab
+    // 免费版强制隐私=public（07-PRD §9：锁定public）
+    if (!isFamily && window.ledger) ledger.forcePublicPrivacy && ledger.forcePublicPrivacy();
+  };
 
   /* ---------------- 全局渲染（身份切换后全量重算，07-PRD §3） ---------------- */
 
@@ -47,8 +73,12 @@
     document.getElementById('app-title').textContent = s.familyName;
     settingsUI.renderViewerChip();
     settingsUI.renderMemberCards();
+    settingsUI.renderCategories();
+    settingsUI.renderTier();
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
+    if (window.dashUI) dashUI.render();       // 看板按新身份刷新
+    if (window.applyTier) applyTier();
   };
 
   /* ---------------- 初始化向导（07-PRD §2.4） ---------------- */
@@ -149,6 +179,8 @@
 
     settingsUI.bind();
     ledger.bind();
+    if (window.splitUI) splitUI.bind();
+    if (window.dashUI) dashUI.bind();
     bindWizard();
 
     if (fcDb.isInitialized()) {

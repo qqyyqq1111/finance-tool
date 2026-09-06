@@ -254,6 +254,8 @@
         .order('updated_at', { ascending: true });
 
       return Promise.all([famQuery, perQuery]).then(function (rs) {
+        if (rs[0].error) return { ok: false, errors: ['拉取 family_docs 失败: ' + rs[0].error.message], pulled: 0 };
+        if (rs[1].error) return { ok: false, errors: ['拉取 personal_docs 失败: ' + rs[1].error.message], pulled: 0 };
         var famRows = (rs[0].data) || [];
         var perRows = (rs[1].data) || [];
         var maxTs = lastPull;
@@ -296,8 +298,10 @@
           });
         });
 
-        // 处理 personal_docs（仅本人，全部可解密）
-        var perOps = perRows.map(function (row) {
+        // 处理 personal_docs（仅本人，全部可解密；跳过密钥备份记录）
+        var perOps = perRows.filter(function (row) {
+          return row.entity_type !== '_key_backup'; // 密钥备份不是常规同步数据
+        }).map(function (row) {
           if (row.updated_at > maxTs) maxTs = row.updated_at;
           return getE2E().decryptText(row.enc_payload, keys.personalKey).then(function (json) {
             var remote = JSON.parse(json);

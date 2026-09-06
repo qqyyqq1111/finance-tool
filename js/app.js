@@ -85,7 +85,13 @@
   window.renderAll = function () {
     var s = fcDb.getSettings();
     if (!s) return;
-    document.getElementById('app-title').textContent = s.familyName;
+    // 保留 sync-badge 子元素：只替换首个文本节点
+    var titleEl = document.getElementById('app-title');
+    if (titleEl.firstChild && titleEl.firstChild.nodeType === 3) {
+      titleEl.firstChild.nodeValue = s.familyName;
+    } else {
+      titleEl.insertBefore(document.createTextNode(s.familyName), titleEl.firstChild);
+    }
     settingsUI.renderViewerChip();
     settingsUI.renderMemberCards();
     settingsUI.renderCategories();

@@ -152,7 +152,9 @@
     });
   };
   E.decryptText = function (blobJson, keyB64) {
-    var blob = typeof blobJson === 'string' ? JSON.parse(blobJson) : blobJson;
+    var blob;
+    try { blob = typeof blobJson === 'string' ? JSON.parse(blobJson) : blobJson; }
+    catch (e) { return Promise.reject(new Error('密文格式损坏')); }
     return importAesKey(keyB64).then(function (key) {
       return getSubtle().decrypt({ name: 'AES-GCM', iv: b64ToU8(blob.iv) }, key, b64ToU8(blob.data));
     }).then(function (pt) { return new TextDecoder().decode(pt); });

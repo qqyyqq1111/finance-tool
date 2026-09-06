@@ -135,10 +135,12 @@
     return s && s.identityLock && s.identityLock.enabled ? s.identityLock : null;
   }
 
-  /** 所有"切换身份"入口统一走这里：开了锁且本会话未验证 → 先要 PIN */
+  /** 所有"切换身份"入口统一走这里：免费版拦截；开锁未验证 → 要 PIN */
   S.requestSwitch = function (memberId) {
     var cur = fcDb.getCurrentViewer();
     if (memberId === cur) { S.closeViewerSheet(); return; } // 点自己=关弹层
+    var s = fcDb.getSettings();
+    if (s.tier === 'free') { global.toast('切换身份是家庭会员功能（版本模式中可切换演示）'); return; }
     var lock = identityLock();
     if (lock && !pinVerified) {
       pinPendingMember = memberId;

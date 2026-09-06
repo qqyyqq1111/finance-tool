@@ -230,7 +230,7 @@
   function renderCats() {
     var box = $('f-cats');
     box.innerHTML = '';
-    fcDb.categoriesList().filter(function (c) { return c.type === form.type; }).forEach(function (c) {
+    fcDb.categoriesList().filter(function (c) { return c.type === form.type && !c.hidden; }).forEach(function (c) {
       var btn = document.createElement('button');
       btn.className = 'rounded-xl border py-2.5 text-center transition ' +
         (form.categoryId === c.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white');
@@ -264,10 +264,12 @@
 
   /** 新账模式：清空表单（07-PRD §4.1 默认值） */
   L.newEntry = function () {
+    var isFamily = fcDb.getSettings() && fcDb.getSettings().tier !== 'free';
     form = {
       type: 'expense', privacy: 'public', shared: true,
       ownerId: fcDb.getCurrentViewer(), categoryId: null, editingId: null
     };
+    if (!isFamily) form.privacy = 'public'; // 免费版锁定 public（07-PRD §9）
     $('f-title').textContent = '记一笔';
     $('f-save').textContent = '保存';
     $('f-amount').value = '';
@@ -276,6 +278,14 @@
     renderTypeSeg();
     renderPrivacySeg();
     renderOwnerSeg();
+  };
+
+  /** 免费版门控：隐私强制 public（07-PRD §9） */
+  L.forcePublicPrivacy = function () {
+    if (form.privacy !== 'public') {
+      form.privacy = 'public';
+      renderPrivacySeg();
+    }
   };
 
   /** 编辑模式：回填表单 */

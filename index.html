@@ -90,8 +90,8 @@
                     <div id="f-owner" class="grid grid-cols-2 gap-2"></div>
                 </div>
 
-                <!-- 隐私层级（三层，07-PRD §5.1） -->
-                <div>
+                <!-- 隐私层级（三层，07-PRD §5.1；免费版隐藏并锁定public） -->
+                <div id="f-privacy-block">
                     <p class="text-xs text-slate-400 mb-2">隐私层级</p>
                     <div id="f-privacy" class="grid grid-cols-3 gap-2">
                         <button data-v="public" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🌐 公开</button>
@@ -174,12 +174,58 @@
                 </div>
             </section>
 
-            <!-- 看板页（批次④实现图表） -->
-            <section id="page-dashboard" class="hidden p-4">
-                <div class="flex flex-col items-center justify-center text-center py-20">
-                    <span class="text-5xl mb-4">📊</span>
-                    <p class="text-slate-700 font-medium">仪表盘 · 开发中</p>
-                    <p class="text-sm text-slate-400 mt-1">批次④上线：本月收支 / 分类占比<br>双人对比 / 我的小金库</p>
+            <!-- 看板页（批次④，07-PRD §7；图表纯CSS实现） -->
+            <section id="page-dashboard" class="hidden p-4 space-y-4">
+
+                <!-- 月份切换 -->
+                <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
+                    <button id="d-month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <p id="d-month-label" class="font-semibold text-slate-800">—</p>
+                    <button id="d-month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                </div>
+
+                <!-- 本月收支大卡 -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <p class="text-xs text-slate-400">本月结余</p>
+                    <p id="d-balance" class="text-3xl font-bold text-slate-800 mt-1">¥0.00</p>
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <div class="bg-emerald-50 rounded-xl p-3">
+                            <p class="text-[11px] text-emerald-600">收入</p>
+                            <p id="d-income" class="font-semibold text-emerald-600 mt-0.5">+¥0.00</p>
+                        </div>
+                        <div class="bg-rose-50 rounded-xl p-3">
+                            <p class="text-[11px] text-rose-500">支出</p>
+                            <p id="d-expense" class="font-semibold text-rose-500 mt-0.5">-¥0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分类占比（Top5，纯CSS条形图） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 class="font-semibold text-slate-800 text-sm mb-3">支出分类占比 Top5</h3>
+                    <div id="d-cats" class="space-y-2.5"></div>
+                </div>
+
+                <!-- 双人对比（仅public共同支出，会员功能） -->
+                <div id="d-duo" class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 class="font-semibold text-slate-800 text-sm mb-1">双人垫付 vs 应承担</h3>
+                    <p class="text-[11px] text-slate-400 mb-3">仅统计公开且参与分摊的共同支出</p>
+                    <div id="d-duo-body"></div>
+                </div>
+
+                <!-- 小金库余额（本人，会员功能） -->
+                <div id="d-vault-card" class="bg-gradient-to-br from-indigo-500 to-violet-500 rounded-2xl p-4 text-white">
+                    <p class="text-xs opacity-80">💰 我的小金库余额</p>
+                    <p id="d-vault-balance" class="text-2xl font-bold mt-0.5">¥0.00</p>
+                </div>
+
+                <!-- 记账坚持（正向激励雏形） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+                    <div>
+                        <h3 class="font-semibold text-slate-800 text-sm">记账坚持</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">本月有记录的天数，坚持就是理财的开始</p>
+                    </div>
+                    <p class="text-lg font-bold text-indigo-500"><span id="d-days">0 / 30</span> <span class="text-xs font-normal text-slate-400">天</span></p>
                 </div>
             </section>
 
@@ -195,7 +241,7 @@
 
                 <!-- 数据备份 -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
-                    <h2 class="font-semibold text-slate-800 mb-1">数据备份</h2>
+                    <h2 class="font-semibold text-slate-800 mb-1">数据备份与导出</h2>
                     <p class="text-xs text-slate-400 mb-3">⚠️ 浏览器清理缓存会清空数据，建议每月导出一次备份</p>
                     <div class="flex gap-3">
                         <button id="btn-export" class="flex-1 bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">导出 JSON</button>
@@ -203,6 +249,35 @@
                             导入 JSON
                             <input id="file-import" type="file" accept=".json,application/json" class="hidden">
                         </label>
+                    </div>
+                    <button id="btn-csv" class="w-full mt-2 bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">
+                        导出 Excel/CSV（仅当前视角可见账目）
+                    </button>
+                </div>
+
+                <!-- 分类管理（会员功能） -->
+                <div id="cat-manage-card" class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">分类管理</h2>
+                    <p class="text-xs text-slate-400 mb-3">预置分类可隐藏不可删；自定义分类最多12个</p>
+                    <div id="cat-list" class="divide-y divide-slate-50"></div>
+                    <div class="flex gap-2 mt-3">
+                        <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+                            <button data-v="expense" class="cat-type-btn active px-3 py-2 border-indigo-500 bg-indigo-50 text-indigo-600">支出</button>
+                            <button data-v="income" class="cat-type-btn px-3 py-2 border-slate-200 text-slate-600">收入</button>
+                        </div>
+                        <input id="cat-name" type="text" maxlength="5" placeholder="新分类名"
+                               class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-400">
+                        <button id="cat-add" class="bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">添加</button>
+                    </div>
+                </div>
+
+                <!-- 版本模式（商业化分层模拟，07-PRD §9） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">版本模式</h2>
+                    <p class="text-xs text-slate-400 mb-3">模拟 SaaS 分层（作品集演示用）：免费版仅单人公开记账；双人协作/隐私/结算为家庭会员功能</p>
+                    <div class="flex gap-2">
+                        <button id="tier-free" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-slate-100 text-slate-500">免费版</button>
+                        <button id="tier-family" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-indigo-600 text-white">家庭会员版</button>
                     </div>
                 </div>
 
@@ -222,8 +297,9 @@
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
                     <ul class="text-xs text-slate-500 space-y-1.5">
-                        <li>版本：v1.0.0-batch3（批次③ 记账+隐私过滤+分摊结算）</li>
+                        <li>版本：v1.0.0-batch4（记账+三层隐私+分摊结算+仪表盘）</li>
                         <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
+                        <li>开源致谢：分摊算法思路参考 <span class="text-indigo-500">spliit</span>（MIT License）</li>
                         <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
                     </ul>
                 </div>
@@ -276,6 +352,44 @@
                         <button id="tx-edit" class="bg-slate-100 text-slate-700 text-sm font-medium rounded-xl py-3 active:opacity-80">编辑</button>
                         <button id="tx-delete" class="bg-red-50 text-red-600 text-sm font-medium rounded-xl py-3 active:opacity-80">删除</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 成员编辑弹层（批次④） -->
+        <div id="member-sheet" class="hidden fixed inset-0 z-40">
+            <div class="absolute inset-0 bg-black/40" id="member-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-3">编辑成员资料</h3>
+                    <input id="m-name" type="text" maxlength="6"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-indigo-400 mb-3">
+                    <div id="m-emoji-row" class="flex flex-wrap gap-2 mb-5"></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="m-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="m-save" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 升级会员弹层（07-PRD §9） -->
+        <div id="upgrade-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="upgrade-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">升级家庭会员版</h3>
+                    <p class="text-xs text-slate-400 mb-4">解锁双人协作全部能力（模拟演示，不产生真实支付）</p>
+                    <div class="space-y-2 text-sm mb-5">
+                        <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">三层隐私（私密账/小金库）</span><span class="text-indigo-500">✓ 会员</span></div>
+                        <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">月度分摊结算 + 自动核算</span><span class="text-indigo-500">✓ 会员</span></div>
+                        <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">双人身份切换</span><span class="text-indigo-500">✓ 会员</span></div>
+                        <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">双人对比看板 / CSV导出</span><span class="text-indigo-500">✓ 会员</span></div>
+                        <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">单人公开记账</span><span class="text-emerald-500">免费版</span></div>
+                    </div>
+                    <button id="upgrade-unlock" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">模拟解锁全部功能</button>
                 </div>
             </div>
         </div>
@@ -350,6 +464,7 @@
 <script src="js/db.js"></script>
 <script src="js/privacy.js"></script>
 <script src="js/split.js"></script>
+<script src="js/dashboard.js"></script>
 <script src="js/ledger.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/app.js"></script>

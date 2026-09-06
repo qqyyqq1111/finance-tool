@@ -382,6 +382,89 @@
   function categoriesList() { return read('categories') || []; }
   function accountsList() { return read('accounts') || []; }
 
+  /* ---------------- 成员管理（07-PRD §8：可改名/emoji；不可增删） ---------------- */
+
+  function updateMember(memberId, patch) {
+    var s = read('settings');
+    if (!s) return { ok: false, errors: ['尚未初始化'] };
+    var m = s.members.filter(function (x) { return x.id === memberId; })[0];
+    if (!m) return { ok: false, errors: ['成员不存在'] };
+    if (patch.name !== undefined) {
+      var name = String(patch.name || '').trim();
+      if (!name) return { ok: false, errors: ['昵称不能为空'] };
+      if (name.length > 6) return { ok: false, errors: ['昵称不超过6个字'] };
+      m.name = name;
+    }
+    if (patch.emoji !== undefined) {
+      if (String(patch.emoji).length === 0) return { ok: false, errors: ['表情不能为空'] };
+      m.emoji = String(patch.emoji).slice(0, 4);
+    }
+    s.updatedAt = Date.now();
+    write('settings', s);
+    return { ok: true };
+  }
+
+  /* ---------------- 分类管理（07-PRD §8：预置可隐藏不可删；自定义≤12） ---------------- */
+
+  var CUSTOM_ICONS = ['📦', '🧾', '💳', '☕', '🎬', '✈️', '📚', '💄', '🐱', '🎁'];
+
+  var categories = {
+    add: function (data) {
+      var cats = read('categories') || [];
+      var customCount = cats.filter(function (c) { return !c.builtin; }).length;
+      if (customCount >= 12) return { ok: false, errors: ['自定义分类最多12个'] };
+      var name = String(data.name || '').trim();
+      if (!name) return { ok: false, errors: ['分类名称不能为空'] };
+      if (name.length > 5) return { ok: false, errors: ['分类名不超过5个字'] };
+      if (TX_TYPES.indexOf(data.type) < 0) return { ok: false, errors: ['类型非法'] };
+      if (cats.some(function (c) { return c.name === name && c.type === data.type; })) {
+        return { ok: false, errors: ['已存在同名分类'] };
+      }
+      var rec = {
+        id: uid('c'),
+        name: name,
+        icon: data.icon || CUSTOM_ICONS[customCount % CUSTOM_ICONS.length],
+        type: data.type,
+        builtin: false,
+        hidden: false,
+        createdAt: Date.now()
+      };
+      cats.push(rec);
+      write('categories', cats);
+      return { ok: true, record: rec };
+    },
+
+    /** 隐藏/恢复（预置与自定义均可；隐藏后不出现在记账选择，历史账目仍正常显示） */
+    setHidden: function (id, hidden) {
+      var cats = read('categories') || [];
+      var c = cats.filter(function (x) { return x.id === id; })[0];
+      if (!c) return { ok: false, errors: ['分类不存在'] };
+      c.hidden = !!hidden;
+      write('categories', cats);
+      return { ok: true };
+    },
+
+    /** 删除：仅自定义且无交易引用（预置分类禁止删除） */
+    remove: function (id) {
+      var cats = read('categories') || [];
+      var c = cats.filter(function (x) { return x.id === id; })[0];
+      if (!c) return { ok: false, errors: ['分类不存在'] };
+      if (c.builtin) return { ok: false, errors: ['预置分类不可删除，可隐藏'] };
+      var used = (read('transactions') || []).some(function (t) { return t.categoryId === id; });
+      if (used) return { ok: false, errors: ['该分类已有账目，不可删除（可隐藏）'] };
+      write('categories', cats.filter(function (x) { return x.id !== id; }));
+      return { ok: true };
+    }
+  };
+
+  /* ---------------- 版本模式（07-PRD §9 商业化分层模拟） ---------------- */
+
+  function setTier(tier) {
+    if (tier !== 'free' && tier !== 'family') return { ok: false, errors: ['非法版本'] };
+    var r = patchSettings({ tier: tier });
+    return r;
+  }
+
   /* ---------------- 备份 / 导入 / 重置（07-PRD §8） ---------------- */
 
   function exportAll() {
@@ -469,6 +552,9 @@
     getCurrentViewer: getCurrentViewer,
     setSplitRule: setSplitRule,
     settlements: settlements,
+    updateMember: updateMember,
+    categories: categories,
+    setTier: setTier,
     tx: tx,
     categoriesList: categoriesList,
     accountsList: accountsList,

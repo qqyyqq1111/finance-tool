@@ -105,6 +105,17 @@ async function main() {
   fcDb.tx.add({ date: '2026-09-04', type: 'income', amount: 100000, categoryId: 'c_salary', ownerId: 'm1', privacy: 'public' });
   assert(fcDb.tx.list().length === 5, '明文路径新增正常（5笔）');
 
+  console.log('[9] deriveHash（v1.0.1 身份锁基础）');
+  var salt1 = fcCrypto.randomSalt();
+  var h1 = await fcCrypto.deriveHash('246810', salt1);
+  var h2 = await fcCrypto.deriveHash('246810', salt1);
+  var h3 = await fcCrypto.deriveHash('135790', salt1);
+  var h4 = await fcCrypto.deriveHash('246810', fcCrypto.randomSalt());
+  assert(h1 === h2, '同口令同salt → 同hash（可校验）');
+  assert(h1 !== h3, '不同口令 → 不同hash');
+  assert(h1 !== h4, '同口令不同salt → 不同hash（防彩虹表）');
+  assert(h1.length === 64, 'SHA-256 hex 64字符');
+
   console.log('');
   console.log('结果：' + passed + ' 通过 / ' + failed + ' 失败');
   process.exit(failed ? 1 : 0);

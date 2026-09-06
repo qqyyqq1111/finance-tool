@@ -34,8 +34,9 @@
       btn.classList.toggle('font-semibold', active);
       btn.classList.toggle('text-slate-400', !active);
     });
-    // 明细页每次进入都重渲染（数据可能已变化）
+    // 明细/结算页每次进入都重渲染（数据可能已变化）
     if (name === 'ledger' && window.ledger) ledger.renderLedger();
+    if (name === 'split' && window.splitUI) splitUI.render();
   }
 
   /* ---------------- 全局渲染（身份切换后全量重算，07-PRD §3） ---------------- */
@@ -47,6 +48,7 @@
     settingsUI.renderViewerChip();
     settingsUI.renderMemberCards();
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
+    if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
   };
 
   /* ---------------- 初始化向导（07-PRD §2.4） ---------------- */

@@ -193,6 +193,114 @@
     return null;
   }
 
+  /* ---------------- 分摊规则（07-PRD §6.1，专用接口） ---------------- */
+
+  /** 校验 {m1,m2} 比例：整数、和为100 */
+  function validRatio(r) {
+    return !!r &&
+      Number.isInteger(r.m1) && Number.isInteger(r.m2) &&
+      r.m1 >= 0 && r.m2 >= 0 && r.m1 + r.m2 === 100;
+  }
+
+  /**
+   * 更新分摊规则（改动只对新账目生效，不追溯历史）
+   * @param rule { defaultRatio?: {m1,m2}, categoryOverrides?: { [categoryId]: {m1,m2}|null } } null=删除覆盖
+   */
+  function setSplitRule(rule) {
+    var s = read('settings');
+    if (!s) return { ok: false, errors: ['尚未初始化'] };
+    s.splitRule = s.splitRule || { defaultRatio: { m1: 50, m2: 50 }, categoryOverrides: {} };
+    if (rule.defaultRatio !== undefined) {
+      if (!validRatio(rule.defaultRatio)) return { ok: false, errors: ['默认比例之和必须为100%'] };
+      s.splitRule.defaultRatio = rule.defaultRatio;
+    }
+    if (rule.categoryOverrides) {
+      s.splitRule.categoryOverrides = s.splitRule.categoryOverrides || {};
+      var cats = read('categories') || [];
+      for (var cid in rule.categoryOverrides) {
+        if (!rule.categoryOverrides.hasOwnProperty(cid)) continue;
+        if (rule.categoryOverrides[cid] === null) {
+          delete s.splitRule.categoryOverrides[cid];
+          continue;
+        }
+        if (!cats.some(function (c) { return c.id === cid; })) return { ok: false, errors: ['分类不存在：' + cid] };
+        if (!validRatio(rule.categoryOverrides[cid])) return { ok: false, errors: ['覆盖比例之和必须为100%'] };
+        s.splitRule.categoryOverrides[cid] = rule.categoryOverrides[cid];
+      }
+    }
+    s.updatedAt = Date.now();
+    write('settings', s);
+    return { ok: true };
+  }
+
+  /* ---------------- 结算记录（07-PRD §6.2/6.3） ---------------- */
+
+  var settlements = {
+    list: function () { return read('settlements') || []; },
+
+    /** 某月的有效结算（void 作废记录不算） */
+    findByMonth: function (month) {
+      return (read('settlements') || []).filter(function (s) {
+        return s.month === month && s.status !== 'void';
+      })[0] || null;
+    },
+
+    /**
+     * 确认结算（锁定当月账目）
+     * @param result fcSplit.monthSettlement 的返回值
+     */
+    add: function (month, result) {
+      if (settlements.findByMonth(month)) return { ok: false, errors: ['该月已存在有效结算记录，请先作废'] };
+      var rec = {
+        id: uid('s'),
+        month: month,
+        status: 'confirmed',           // confirmed → settled | void
+        from: result.transfer ? result.transfer.from : null,
+        to: result.transfer ? result.transfer.to : null,
+        amount: result.transfer ? result.transfer.amount : 0,
+        itemsCount: result.items.length,
+        totalShare: result.shares,
+        createdAt: Date.now(),
+        confirmedAt: Date.now(),
+        settledAt: null,
+        voidedAt: null
+      };
+      var list = read('settlements') || [];
+      list.push(rec);
+      write('settlements', list);
+      return { ok: true, record: rec };
+    },
+
+    setStatus: function (id, status) {
+      var list = read('settlements') || [];
+      var rec = list.filter(function (s) { return s.id === id; })[0];
+      if (!rec) return { ok: false, errors: ['结算记录不存在'] };
+      if (status !== 'settled' && status !== 'void') return { ok: false, errors: ['非法状态'] };
+      if (rec.status === 'void') return { ok: false, errors: ['该记录已作废'] };
+      if (status === 'settled' && rec.status === 'settled') return { ok: false, errors: ['该月已标记结清'] };
+      rec.status = status;
+      if (status === 'settled') rec.settledAt = Date.now();
+      if (status === 'void') rec.voidedAt = Date.now();
+      write('settlements', list);
+      return { ok: true, record: rec };
+    }
+  };
+
+  /** 已确认结算月份的账目写操作拦截（07-PRD §6.3.5） */
+  function settlementLockError(date) {
+    var s = date ? settlements.findByMonth(String(date).slice(0, 7)) : null;
+    return s ? '该月（' + s.month + '）已确认结算，如需修改请先在结算页作废本月结算' : null;
+  }
+
+  /** 落账时刻生效的分摊比例（类别覆盖优先→默认）。固化到交易上，规则后续改动不追溯（07-PRD §6.1） */
+  function effectiveRatio(categoryId) {
+    var s = read('settings');
+    var rule = (s && s.splitRule) || {};
+    var ov = (rule.categoryOverrides || {})[categoryId];
+    var r = ov || rule.defaultRatio || { m1: 50, m2: 50 };
+    return { m1: r.m1, m2: r.m2 };
+  }
+
   var tx = {
     /** 返回全量交易（原始数据，不做隐私过滤——过滤统一在 privacy.js） */
     list: function () {
@@ -213,6 +321,7 @@
         ownerId: data.ownerId,
         privacy: data.privacy || 'public',
         vaultId: data.vaultId || null,
+        splitRatio: effectiveRatio(data.categoryId), // 固化落账时比例（结算不追溯规则改动）
         // 默认分摊规则：仅 public 支出参与；private/vault 强制不参与（07-PRD §2.2）
         shared: data.privacy === 'public' && data.type === 'expense'
           ? (data.shared !== false)
@@ -223,6 +332,8 @@
       };
       var err = validateTx(rec);
       if (err) return { ok: false, errors: [err] };
+      var lock = settlementLockError(rec.date); // 已结算月份禁止补录（保证结算完整性）
+      if (lock) return { ok: false, errors: [lock] };
       var list = read('transactions') || [];
       list.push(rec);
       write('transactions', list);
@@ -241,10 +352,15 @@
         rec[k] = patch[k];
       });
       rec.updatedAt = Date.now();
+      // 换分类时按当前规则重解析比例（本笔视为"新账"）
+      if (patch.categoryId !== undefined) rec.splitRatio = effectiveRatio(rec.categoryId);
       // shared 与 privacy/type 的强制约束随更新重算
       if (rec.privacy !== 'public' || rec.type !== 'expense') rec.shared = false;
       var err = validateTx(rec);
       if (err) return { ok: false, errors: [err] };
+      // 原所属月与调整后月份任一已结算都需拦截（07-PRD §6.3.5）
+      var lock = settlementLockError(list[idx].date) || settlementLockError(rec.date);
+      if (lock) return { ok: false, errors: [lock] };
       list[idx] = rec;
       write('transactions', list);
       return { ok: true, record: rec };
@@ -252,9 +368,11 @@
 
     remove: function (id) {
       var list = read('transactions') || [];
-      var next = list.filter(function (t) { return t.id !== id; });
-      if (next.length === list.length) return { ok: false, errors: ['交易不存在'] };
-      write('transactions', next);
+      var t = list.filter(function (x) { return x.id === id; })[0];
+      if (!t) return { ok: false, errors: ['交易不存在'] };
+      var lock = settlementLockError(t.date);
+      if (lock) return { ok: false, errors: [lock] };
+      write('transactions', list.filter(function (x) { return x.id !== id; }));
       return { ok: true };
     }
   };
@@ -349,6 +467,8 @@
     getVaultOf: getVaultOf,
     switchViewer: switchViewer,
     getCurrentViewer: getCurrentViewer,
+    setSplitRule: setSplitRule,
+    settlements: settlements,
     tx: tx,
     categoriesList: categoriesList,
     accountsList: accountsList,

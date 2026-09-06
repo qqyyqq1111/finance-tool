@@ -93,6 +93,11 @@
     var totals = fcPrivacy.monthTotals(txs, viewer, currentMonth);
     $('month-income').textContent = fmt(totals.income, true);
     $('month-expense').textContent = fmt(-totals.expense, true);
+    // R17：月度汇总加结余（真实符号，负数红色）
+    var mbal = totals.income - totals.expense;
+    var mbalEl = $('month-balance');
+    mbalEl.textContent = mbal < 0 ? '-¥' + (Math.abs(mbal) / 100).toFixed(2) : '¥' + (mbal / 100).toFixed(2);
+    mbalEl.className = 'font-medium ' + (mbal < 0 ? 'text-rose-500' : 'text-slate-600');
 
     /* --- R13：锁定月份提示条 --- */
     var oldBanner = document.getElementById('month-lock-banner');
@@ -137,6 +142,8 @@
       var cat = cats[t.categoryId] || { icon: '📦', name: '未知' };
       var isIncome = t.type === 'income';
       var badge = t.privacy === 'private' ? ' 🔒' : (t.privacy === 'vault' ? ' 💰' : '');
+      // R18：共摊标记（公开支出且参与分摊）
+      var sharedTag = (t.privacy === 'public' && t.type === 'expense' && t.shared) ? ' · 共摊' : '';
       var owner = fcDb.findMember(t.ownerId);
       var btn = document.createElement('button');
       var hl = t.id === highlightId;
@@ -147,7 +154,7 @@
         '<span class="text-2xl leading-none">' + cat.icon + '</span>' +
         '<span class="flex-1 min-w-0">' +
         '<p class="text-sm text-slate-800 truncate">' + (t.note || cat.name) + '</p>' +
-        '<p class="text-[11px] text-slate-400 mt-0.5">' + t.date.slice(5) + ' · ' + (owner ? owner.name : '?') + badge + '</p>' +
+        '<p class="text-[11px] text-slate-400 mt-0.5">' + t.date.slice(5) + ' · ' + (owner ? owner.name : '?') + badge + sharedTag + '</p>' +
         '</span>' +
         '<span class="font-semibold ' + (isIncome ? 'text-emerald-500' : 'text-slate-800') + '">' + fmt(isIncome ? t.amount : -t.amount, true) + '</span>';
       btn.addEventListener('click', function () { L.openDetail(t.id); });
@@ -249,7 +256,8 @@
   }
 
   function renderSharedRow() {
-    var show = form.privacy === 'public' && form.type === 'expense';
+    var isFamily = fcDb.getSettings() && fcDb.getSettings().tier !== 'free';
+    var show = isFamily && form.privacy === 'public' && form.type === 'expense'; // R17：免费版无结算，隐藏分摊开关
     $('f-shared-row').classList.toggle('hidden', !show);
     var btn = $('f-shared');
     btn.textContent = form.shared ? '开启' : '关闭';
@@ -260,7 +268,10 @@
   function renderCats() {
     var box = $('f-cats');
     box.innerHTML = '';
-    fcDb.categoriesList().filter(function (c) { return c.type === form.type && !c.hidden; }).forEach(function (c) {
+    var list = fcDb.categoriesList().filter(function (c) { return c.type === form.type && !c.hidden; });
+    // R17：默认选中第一个分类，避免新用户首记碰"请选择分类"
+    if (!form.categoryId && list.length) form.categoryId = list[0].id;
+    list.forEach(function (c) {
       var btn = document.createElement('button');
       btn.className = 'rounded-xl border py-2.5 text-center transition ' +
         (form.categoryId === c.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white');

@@ -107,6 +107,9 @@
 
   S.openViewerSheet = function () {
     S.renderViewerSheet();
+    // R17：身份锁开启时在弹层内提示
+    var hint = document.getElementById('viewer-lock-hint');
+    if (hint) hint.classList.toggle('hidden', !identityLock());
     document.getElementById('viewer-sheet').classList.remove('hidden');
   };
 
@@ -119,6 +122,14 @@
     var r = fcDb.switchViewer(memberId);
     if (!r.ok) { global.toast(r.errors[0]); return; }
     S.closeViewerSheet();
+    // R17：切换身份时若在记一笔页且非编辑态，重置表单（避免用旧身份的金额/归属人误提交）
+    if (window.ledger && typeof ledger.newEntry === 'function') {
+      var addPage = document.getElementById('page-add');
+      var isEditing = document.getElementById('f-title') && document.getElementById('f-title').textContent === '编辑账目';
+      if (addPage && !addPage.classList.contains('hidden') && !isEditing) {
+        ledger.newEntry();
+      }
+    }
     var me = fcDb.findMember(memberId);
     global.toast('已切换为 ' + me.name + ' 的视角');
     global.renderAll();
@@ -203,7 +214,7 @@
         s.identityLock = { enabled: true, salt: salt, hash: hash, iterations: 150000 };
         s.updatedAt = Date.now();
         fcDb._cryptoBridge.rawWrite('settings', s);
-        pinVerified = true;
+        pinVerified = false; // 开启后不预验证，切换身份立即要求口令（R16：设置后未刷新窗口免密漏洞）
         S.closePinSheet();
         global.toast('身份锁已开启，切换视角需口令', 'success');
         global.renderAll();
@@ -250,7 +261,7 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(a.href);
-    global.toast('备份已导出，请妥善保存');
+    global.toast('备份已保存到浏览器下载文件夹（文件名带日期），请妥善保管');
   };
 
   S.importJson = function (file) {
@@ -265,10 +276,21 @@
     reader.readAsText(file, 'utf-8');
   };
 
-  /** 退出当前家庭：清空本机全部数据 → 回到初始化向导（v1.0.1，R8） */
+  /** 退出当前家庭：清空本机全部数据 → 回到初始化向导（v1.0.1，R8 / R17 自定义弹层） */
   S.resetAll = function () {
-    var input = global.prompt('将清空本机全部账本数据（含双方账目、结算、备份外的所有记录），用于退出当前家庭重新开始。\n此操作不可恢复！确认请输入：退出');
-    if (input !== '退出') { global.toast('已取消'); return; }
+    document.getElementById('reset-input').value = '';
+    document.getElementById('reset-err').textContent = '';
+    document.getElementById('reset-sheet').classList.remove('hidden');
+    setTimeout(function () { document.getElementById('reset-input').focus(); }, 80);
+  };
+
+  S.closeResetSheet = function () {
+    document.getElementById('reset-sheet').classList.add('hidden');
+  };
+
+  S.confirmReset = function () {
+    var val = document.getElementById('reset-input').value.trim();
+    if (val !== '退出') { document.getElementById('reset-err').textContent = '请输入「退出」二字确认'; return; }
     fcDb.resetAll();
     location.reload();
   };
@@ -353,7 +375,7 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(a.href);
-    global.toast('已导出 ' + visible.length + ' 笔可见账目（CSV）');
+    global.toast('已导出 ' + visible.length + ' 笔可见账目，CSV 已保存到浏览器下载文件夹');
   };
 
   /* ---------------- 版本模式（07-PRD §9 商业化分层模拟） ---------------- */
@@ -462,6 +484,10 @@
     });
     // 退出当前家庭（清空重建）
     document.getElementById('btn-reset').addEventListener('click', S.resetAll);
+    document.getElementById('reset-sheet-mask').addEventListener('click', S.closeResetSheet);
+    document.getElementById('reset-cancel').addEventListener('click', S.closeResetSheet);
+    document.getElementById('reset-confirm').addEventListener('click', S.confirmReset);
+    document.getElementById('reset-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') S.confirmReset(); });
 
     // 身份切换锁（v1.0.1）
     document.getElementById('idlock-enable').addEventListener('click', function () { S.openPinSheet('set'); });

@@ -81,7 +81,9 @@
     var totals = fcPrivacy.monthTotals(txs, viewer, currentMonth);
     $('d-income').textContent = fmt(totals.income, true);
     $('d-expense').textContent = fmt(-totals.expense, true);
-    $('d-balance').textContent = fmt(totals.income - totals.expense);
+    var bal = totals.income - totals.expense;
+    $('d-balance').textContent = bal < 0 ? '-¥' + (Math.abs(bal) / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '¥' + (bal / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    $('d-balance').className = 'text-3xl font-bold mt-1 ' + (bal < 0 ? 'text-rose-500' : 'text-slate-800');
 
     /* --- 分类占比 Top5（纯 CSS 条形） --- */
     var bd = D.categoryBreakdown(txs, viewer, currentMonth);

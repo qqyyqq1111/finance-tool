@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>双人家庭AI理财助手</title>
-    <script src="https://cdn.tailwindcss.com?v=1.0.2"></script>
+    <script src="https://cdn.tailwindcss.com?v=1.0.3"></script>
 </head>
 <body class="bg-slate-100">
 <div class="max-w-[480px] mx-auto min-h-screen bg-white relative shadow-sm">
@@ -66,7 +66,9 @@
                         <p id="month-label" class="font-semibold text-slate-800">—</p>
                         <p class="text-xs text-slate-400 mt-0.5">收 <span id="month-income" class="text-emerald-500 font-medium">+¥0.00</span>
                             ·
-                            支 <span id="month-expense" class="text-rose-500 font-medium">-¥0.00</span></p>
+                            支 <span id="month-expense" class="text-rose-500 font-medium">-¥0.00</span>
+                            ·
+                            结余 <span id="month-balance" class="font-medium">¥0.00</span></p>
                     </div>
                     <button id="month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
                 </div>
@@ -158,9 +160,9 @@
                 <div>
                     <button id="s-detail-toggle" class="w-full flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600">
                         <span>构成明细（仅公开且参与分摊的支出）</span>
-                        <span id="s-detail-arrow">▾</span>
+                        <span id="s-detail-arrow">▴</span>
                     </button>
-                    <div id="s-detail-list" class="hidden mt-2 space-y-2"></div>
+                    <div id="s-detail-list" class="mt-2 space-y-2"></div>
                 </div>
 
                 <!-- 操作区 -->
@@ -213,6 +215,7 @@
                             <p id="d-expense" class="font-semibold text-rose-500 mt-0.5">-¥0.00</p>
                         </div>
                     </div>
+                    <p id="d-scope-hint" class="text-[10px] text-slate-400 mt-2.5 leading-relaxed">口径：含本人小金库收支（小金库对对方完全不可见、不进分摊）</p>
                 </div>
 
                 <!-- 分类占比（Top5，纯CSS条形图） -->
@@ -372,7 +375,8 @@
                 <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
                     <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
                     <h3 class="font-semibold text-slate-800 mb-1">切换身份</h3>
-                    <p class="text-xs text-slate-400 mb-4">切换后所有页面按该成员视角展示数据（对方私密与小金库将隐藏）</p>
+                    <p class="text-xs text-slate-400 mb-3">切换后所有页面按该成员视角展示数据（对方私密与小金库将隐藏）</p>
+                    <p id="viewer-lock-hint" class="hidden text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2 mb-4">🔒 身份锁已开启，切换到对方视角需要输入切换口令</p>
                     <div id="viewer-options" class="space-y-2"></div>
                 </div>
             </div>
@@ -450,6 +454,26 @@
                     <div class="grid grid-cols-2 gap-3">
                         <button id="pin-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
                         <button id="pin-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">确认</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 退出当前家庭（清空重建）自定义确认弹层（R17） -->
+        <div id="reset-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="reset-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-2">退出当前家庭</h3>
+                    <p class="text-xs text-slate-500 leading-relaxed mb-3">将清空本机全部账本数据（含双方账目、结算、设置等所有记录），用于退出当前家庭重新开始。<br>此操作不可恢复，建议先导出 JSON 备份。</p>
+                    <p class="text-xs text-rose-500 mb-2">确认请输入「退出」二字：</p>
+                    <input id="reset-input" type="text" maxlength="2" placeholder="退出"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-center text-slate-800 mb-3 focus:outline-none focus:border-rose-400">
+                    <p id="reset-err" class="text-xs text-rose-500 mb-3 h-4"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="reset-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="reset-confirm" class="bg-rose-500 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">确认清空</button>
                     </div>
                 </div>
             </div>
@@ -543,13 +567,13 @@
     </div>
 </div>
 
-<script src="js/db.js?v=1.0.2"></script>
-<script src="js/crypto.js?v=1.0.2"></script>
-<script src="js/privacy.js?v=1.0.2"></script>
-<script src="js/ledger.js?v=1.0.2"></script>
-<script src="js/split.js?v=1.0.2"></script>
-<script src="js/dashboard.js?v=1.0.2"></script>
-<script src="js/settings.js?v=1.0.2"></script>
-<script src="js/app.js?v=1.0.2"></script>
+<script src="js/db.js?v=1.0.3"></script>
+<script src="js/crypto.js?v=1.0.3"></script>
+<script src="js/privacy.js?v=1.0.3"></script>
+<script src="js/ledger.js?v=1.0.3"></script>
+<script src="js/split.js?v=1.0.3"></script>
+<script src="js/dashboard.js?v=1.0.3"></script>
+<script src="js/settings.js?v=1.0.3"></script>
+<script src="js/app.js?v=1.0.3"></script>
 </body>
 </html>

@@ -1,0 +1,160 @@
+/* ============================================================
+ * app.js — 页面装配 / Tab路由 / 首次初始化向导
+ * 批次① 范围（06-路线图批次①）：
+ *  - Tailwind CDN 应用骨架 + 底部Tab（明细/结算/＋记一笔/看板/设置）
+ *  - 三步初始化向导（07-PRD §2.4）
+ *  - 身份切换装配（实现在 settings.js）
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var PAGES = ['ledger', 'add', 'split', 'dashboard', 'settings'];
+
+  /* ---------------- Toast ---------------- */
+
+  var toastTimer = null;
+  window.toast = function (msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 1800);
+  };
+
+  /* ---------------- Tab 路由 ---------------- */
+
+  function showPage(name) {
+    PAGES.forEach(function (p) {
+      var sec = document.getElementById('page-' + p);
+      if (sec) sec.classList.toggle('hidden', p !== name);
+    });
+    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+      var active = btn.getAttribute('data-tab') === name;
+      btn.classList.toggle('text-indigo-600', active);
+      btn.classList.toggle('font-semibold', active);
+      btn.classList.toggle('text-slate-400', !active);
+    });
+  }
+
+  /* ---------------- 全局渲染（身份切换后全量重算） ---------------- */
+
+  window.renderAll = function () {
+    var s = fcDb.getSettings();
+    if (!s) return;
+    document.getElementById('app-title').textContent = s.familyName;
+    settingsUI.renderViewerChip();
+    settingsUI.renderMemberCards();
+  };
+
+  /* ---------------- 初始化向导（07-PRD §2.4） ---------------- */
+
+  var wizardState = {
+    step: 1,
+    familyName: '我们的家',
+    members: [
+      { name: '', emoji: '🧑' },
+      { name: '', emoji: '👩' }
+    ],
+    ratio: 50
+  };
+
+  var EMOJIS = ['🧑', '👩', '👨', '👱‍♀️', '🧔', '👩‍🦱', '🦰', '🐰'];
+
+  function goStep(n) {
+    wizardState.step = n;
+    [1, 2, 3].forEach(function (i) {
+      document.getElementById('wstep-' + i).classList.toggle('hidden', i !== n);
+      document.getElementById('wstep-' + i).classList.toggle('flex', i === n);
+    });
+    document.querySelectorAll('.wstep').forEach(function (dot, idx) {
+      dot.classList.toggle('bg-indigo-600', idx < n);
+      dot.classList.toggle('bg-slate-200', idx >= n);
+    });
+  }
+
+  function buildEmojiRows() {
+    document.querySelectorAll('.emoji-row').forEach(function (row) {
+      var target = Number(row.getAttribute('data-target'));
+      row.innerHTML = '';
+      EMOJIS.forEach(function (e) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-9 h-9 rounded-xl border text-xl flex items-center justify-center ' +
+          (wizardState.members[target].emoji === e ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200');
+        btn.textContent = e;
+        btn.addEventListener('click', function () {
+          wizardState.members[target].emoji = e;
+          document.getElementById('w-emoji-' + target).textContent = e;
+          buildEmojiRows();
+        });
+        row.appendChild(btn);
+      });
+    });
+  }
+
+  function finishWizard() {
+    wizardState.familyName = document.getElementById('w-family').value.trim() || '我们的家';
+    wizardState.members[0].name = document.getElementById('w-name-0').value.trim() || '成员A';
+    wizardState.members[1].name = document.getElementById('w-name-1').value.trim() || '成员B';
+    wizardState.ratio = Number(document.getElementById('w-ratio').value);
+    var r = fcDb.init({
+      familyName: wizardState.familyName,
+      members: wizardState.members,
+      ratio: { m1: wizardState.ratio, m2: 100 - wizardState.ratio }
+    });
+    if (!r.ok) { toast(r.errors[0]); return; }
+    document.getElementById('wizard').classList.add('hidden');
+    document.getElementById('app-main').classList.remove('hidden');
+    window.renderAll();
+    showPage('ledger');
+    toast('账本创建成功，开始记第一笔吧');
+  }
+
+  function bindWizard() {
+    buildEmojiRows();
+    document.getElementById('w-next-1').addEventListener('click', function () {
+      wizardState.familyName = document.getElementById('w-family').value.trim() || '我们的家';
+      goStep(2);
+    });
+    document.getElementById('w-next-2').addEventListener('click', function () {
+      goStep(3);
+    });
+    document.getElementById('w-ratio').addEventListener('input', function (e) {
+      var v = Number(e.target.value);
+      document.getElementById('w-ratio-text').textContent = v + '% : ' + (100 - v) + '%';
+      document.getElementById('w-ratio-label-0').textContent = '成员A ' + v + '%';
+      document.getElementById('w-ratio-label-1').textContent = '成员B ' + (100 - v) + '%';
+    });
+    document.getElementById('w-finish').addEventListener('click', finishWizard);
+  }
+
+  /* ---------------- 启动 ---------------- */
+
+  function boot() {
+    fcDb.migrate();
+
+    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { showPage(btn.getAttribute('data-tab')); });
+    });
+    // 中央 ＋ 按钮
+    document.querySelector('[data-tab="add"]').addEventListener('click', function () {
+      showPage('add');
+    });
+
+    settingsUI.bind();
+    bindWizard();
+
+    if (fcDb.isInitialized()) {
+      document.getElementById('wizard').classList.add('hidden');
+      document.getElementById('app-main').classList.remove('hidden');
+      window.renderAll();
+      showPage('ledger');
+    } else {
+      document.getElementById('app-main').classList.add('hidden');
+      document.getElementById('wizard').classList.remove('hidden');
+      goStep(1);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', boot);
+})();

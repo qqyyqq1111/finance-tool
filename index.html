@@ -2,12 +2,221 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 适配手机屏幕必备代码 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的理财小工具测试</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>双人家庭AI理财助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <h1>环境测试成功啦！</h1>
-    <p>以后这里就是你的理财助手页面</p>
+<body class="bg-slate-100">
+<div class="max-w-[480px] mx-auto min-h-screen bg-white relative shadow-sm">
+
+    <!-- ============ 应用主界面 ============ -->
+    <div id="app-main" class="hidden">
+
+        <!-- 顶部栏 -->
+        <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100">
+            <div class="flex items-center justify-between px-4 h-14">
+                <div>
+                    <h1 id="app-title" class="font-bold text-slate-800 leading-tight">我们的家</h1>
+                    <p class="text-[10px] text-slate-400 leading-tight">本地存储 · 数据不出设备</p>
+                </div>
+                <button id="viewer-chip" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 transition rounded-full pl-1.5 pr-3 py-1">
+                    <span id="viewer-emoji" class="text-lg leading-none">🧑</span>
+                    <span id="viewer-name" class="text-sm text-slate-700">成员A</span>
+                    <span class="text-[10px] text-slate-400">切换</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 页面容器 -->
+        <main class="pb-28">
+
+            <!-- 明细页（批次②实现列表） -->
+            <section id="page-ledger" class="p-4">
+                <div class="flex flex-col items-center justify-center text-center py-20">
+                    <span class="text-5xl mb-4">📒</span>
+                    <p class="text-slate-700 font-medium">还没有账目</p>
+                    <p class="text-sm text-slate-400 mt-1">点击底部 ＋ 记下第一笔<br>批次②将上线记账与三层隐私过滤</p>
+                </div>
+            </section>
+
+            <!-- 记一笔页（批次②实现表单） -->
+            <section id="page-add" class="hidden p-4">
+                <div class="flex flex-col items-center justify-center text-center py-20">
+                    <span class="text-5xl mb-4">✍️</span>
+                    <p class="text-slate-700 font-medium">记一笔 · 开发中</p>
+                    <p class="text-sm text-slate-400 mt-1">批次②上线：金额 / 分类 / 归属人<br>公开 · 单笔私密 · 小金库 三层标记</p>
+                </div>
+            </section>
+
+            <!-- 结算页（批次③实现引擎） -->
+            <section id="page-split" class="hidden p-4">
+                <div class="flex flex-col items-center justify-center text-center py-20">
+                    <span class="text-5xl mb-4">⚖️</span>
+                    <p class="text-slate-700 font-medium">月度结算 · 开发中</p>
+                    <p class="text-sm text-slate-400 mt-1">批次③上线：自定义分摊比例<br>垫付差额自动核算 + 一键锁定</p>
+                </div>
+            </section>
+
+            <!-- 看板页（批次④实现图表） -->
+            <section id="page-dashboard" class="hidden p-4">
+                <div class="flex flex-col items-center justify-center text-center py-20">
+                    <span class="text-5xl mb-4">📊</span>
+                    <p class="text-slate-700 font-medium">仪表盘 · 开发中</p>
+                    <p class="text-sm text-slate-400 mt-1">批次④上线：本月收支 / 分类占比<br>双人对比 / 我的小金库</p>
+                </div>
+            </section>
+
+            <!-- 设置页 -->
+            <section id="page-settings" class="hidden p-4 space-y-4">
+
+                <!-- 身份切换 -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">双人身份</h2>
+                    <p class="text-xs text-slate-400 mb-3">v1.0 单设备双人模式：切换身份即可查看对应视角的数据可见范围</p>
+                    <div id="settings-members" class="grid grid-cols-2 gap-3"></div>
+                </div>
+
+                <!-- 数据备份 -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">数据备份</h2>
+                    <p class="text-xs text-slate-400 mb-3">⚠️ 浏览器清理缓存会清空数据，建议每月导出一次备份</p>
+                    <div class="flex gap-3">
+                        <button id="btn-export" class="flex-1 bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">导出 JSON</button>
+                        <label class="flex-1 text-center bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 cursor-pointer active:opacity-80">
+                            导入 JSON
+                            <input id="file-import" type="file" accept=".json,application/json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 开发者自测（批次①验收工具，v1.0 发布前可移除） -->
+                <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-4">
+                    <h2 class="font-semibold text-slate-600 mb-1">开发者自测</h2>
+                    <p class="text-xs text-slate-400 mb-3">批次①验收：数据层读写 / 导入导出 / 持久化</p>
+                    <div class="grid grid-cols-3 gap-2 text-sm">
+                        <button id="btn-seed" class="bg-slate-100 text-slate-700 rounded-xl py-2 active:opacity-80">写入示例账目</button>
+                        <button id="btn-check" class="bg-slate-100 text-slate-700 rounded-xl py-2 active:opacity-80">数据体检</button>
+                        <button id="btn-reset" class="bg-red-50 text-red-600 rounded-xl py-2 active:opacity-80">清空全部</button>
+                    </div>
+                    <p id="check-result" class="hidden mt-3 text-xs bg-slate-50 rounded-xl p-3 text-slate-600 font-mono break-all"></p>
+                </div>
+
+                <!-- 关于 -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
+                    <ul class="text-xs text-slate-500 space-y-1.5">
+                        <li>版本：v1.0.0-batch1（批次① 骨架 + 数据层）</li>
+                        <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
+                        <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- 底部导航 -->
+        <nav class="fixed bottom-0 inset-x-0 z-30">
+            <div class="max-w-[480px] mx-auto bg-white border-t border-slate-200 grid grid-cols-5 items-end h-16 pb-1">
+                <button data-tab="ledger" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
+                    <span class="text-xl leading-none">📒</span><span>明细</span>
+                </button>
+                <button data-tab="split" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
+                    <span class="text-xl leading-none">⚖️</span><span>结算</span>
+                </button>
+                <button data-tab="add" class="flex flex-col items-center -translate-y-4">
+                    <span class="w-14 h-14 rounded-full bg-indigo-600 text-white text-3xl leading-[3.5rem] text-center shadow-lg shadow-indigo-200 active:opacity-80">＋</span>
+                    <span class="text-[11px] text-slate-400 mt-0.5">记一笔</span>
+                </button>
+                <button data-tab="dashboard" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
+                    <span class="text-xl leading-none">📊</span><span>看板</span>
+                </button>
+                <button data-tab="settings" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
+                    <span class="text-xl leading-none">⚙️</span><span>设置</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- 身份切换弹层 -->
+        <div id="viewer-sheet" class="hidden fixed inset-0 z-40">
+            <div class="absolute inset-0 bg-black/40" id="viewer-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">切换身份</h3>
+                    <p class="text-xs text-slate-400 mb-4">切换后所有页面按该成员视角展示数据（对方私密与小金库将隐藏）</p>
+                    <div id="viewer-options" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2 rounded-full z-50 shadow-lg whitespace-nowrap"></div>
+    </div>
+
+    <!-- ============ 首次初始化向导（07-PRD §2.4，三步） ============ -->
+    <div id="wizard" class="hidden min-h-screen flex flex-col bg-white">
+        <!-- 步骤指示 -->
+        <div class="flex justify-center gap-1.5 pt-8">
+            <span class="wstep w-2 h-2 rounded-full bg-indigo-600 transition-all"></span>
+            <span class="wstep w-2 h-2 rounded-full bg-slate-200 transition-all"></span>
+            <span class="wstep w-2 h-2 rounded-full bg-slate-200 transition-all"></span>
+        </div>
+
+        <!-- 第1步：欢迎 + 隐私承诺 + 家庭名 -->
+        <div id="wstep-1" class="flex-1 flex flex-col justify-center px-8">
+            <span class="text-6xl text-center mb-6">🔐</span>
+            <h1 class="text-2xl font-bold text-slate-800 text-center mb-3">双人家庭AI理财助手</h1>
+            <p class="text-sm text-slate-500 text-center leading-relaxed mb-10">
+                你们的账本只保存在这台设备上，<br>不上传任何服务器，随时可导出备份。
+            </p>
+            <label class="text-sm text-slate-500 mb-1.5">给家庭账本起个名字</label>
+            <input id="w-family" type="text" maxlength="12" value="我们的家"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-indigo-400">
+            <button id="w-next-1" class="mt-8 w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">下一步</button>
+        </div>
+
+        <!-- 第2步：创建两位成员 -->
+        <div id="wstep-2" class="hidden flex-1 flex-col justify-center px-8">
+            <h1 class="text-xl font-bold text-slate-800 text-center mb-8">创建两位成员</h1>
+            <div class="space-y-5">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span id="w-emoji-0" class="text-4xl">🧑</span>
+                        <input id="w-name-0" type="text" maxlength="6" placeholder="成员A昵称"
+                               class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-400">
+                    </div>
+                    <div class="emoji-row flex gap-2" data-target="0"></div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span id="w-emoji-1" class="text-4xl">👩</span>
+                        <input id="w-name-1" type="text" maxlength="6" placeholder="成员B昵称"
+                               class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-400">
+                    </div>
+                    <div class="emoji-row flex gap-2" data-target="1"></div>
+                </div>
+            </div>
+            <button id="w-next-2" class="mt-10 w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">下一步</button>
+        </div>
+
+        <!-- 第3步：默认分摊比例 -->
+        <div id="wstep-3" class="hidden flex-1 flex flex-col justify-center px-8">
+            <h1 class="text-xl font-bold text-slate-800 text-center mb-2">共同支出怎么分摊？</h1>
+            <p class="text-sm text-slate-400 text-center mb-10">之后可按分类单独覆盖，此处为默认比例</p>
+            <p class="text-center text-3xl font-bold text-indigo-600 mb-8">
+                <span id="w-ratio-text">50% : 50%</span>
+            </p>
+            <input id="w-ratio" type="range" min="10" max="90" step="5" value="50" class="w-full accent-indigo-600">
+            <div class="flex justify-between text-xs text-slate-400 mt-1">
+                <span id="w-ratio-label-0">成员A 50%</span>
+                <span id="w-ratio-label-1">成员B 50%</span>
+            </div>
+            <button id="w-finish" class="mt-10 w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">开始使用</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

@@ -61,6 +61,13 @@
     toggle(document.getElementById('d-vault-card'), true);         // 看板小金库卡
     toggle(document.getElementById('btn-csv'), true);              // CSV导出
     toggle(document.getElementById('cat-manage-card'), true);      // 分类管理（会员）
+    // v1.1 批次⑨：云同步卡片——免费版置灰+升级弹层（不隐藏，需可见卖点）
+    var cloudCard = document.getElementById('cloud-sync-card');
+    if (cloudCard) {
+      cloudCard.classList.toggle('opacity-50', !isFamily);
+      cloudCard.classList.toggle('pointer-events-none', !isFamily);
+      cloudCard.dataset.gated = isFamily ? '0' : '1';
+    }
     var splitTab = document.querySelector('.nav-btn[data-tab="split"]');
     if (splitTab) splitTab.classList.toggle('hidden', !isFamily);  // 结算Tab
     // v1.0.2：免费版隐藏结算Tab后，剩余4个Tab均分导航栏（5列→4列）
@@ -86,6 +93,7 @@
     if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
     if (window.settingsUI && settingsUI.renderIdentityLock) settingsUI.renderIdentityLock();
     if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
+    if (window.fcSync && fcSync.renderBadge) fcSync.renderBadge(); // v1.1 批次⑨ 顶部同步图标
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
     if (window.dashUI) dashUI.render();       // 看板按新身份刷新

@@ -71,9 +71,13 @@
       if (!sessionCache) { console.warn('[db] 加密未解锁，写入被忽略:', key); return; }
       sessionCache[key] = value;
       if (global.fcCrypto && global.fcCrypto.persistSoon) global.fcCrypto.persistSoon();
-      return;
+    } else {
+      rawWrite(key, value);
     }
-    rawWrite(key, value);
+    // v1.1 同步调度：本地写入后 debounce 3s 触发 push
+    if (global.fcSync && typeof global.fcSync.scheduleSync === 'function') {
+      global.fcSync.scheduleSync();
+    }
   }
 
   function removeKey(key) { rawRemove(key); }

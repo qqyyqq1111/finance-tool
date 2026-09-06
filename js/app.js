@@ -217,6 +217,7 @@
     ledger.bind();
     if (window.splitUI) splitUI.bind();
     if (window.dashUI) dashUI.bind();
+    if (window.fcSync) fcSync.bind();
     bindWizard();
 
     // v1.1 云认证 + 配对链接直达：登录态变化驱动设置页云卡片（未配置时回调 null，自动显示单机态）

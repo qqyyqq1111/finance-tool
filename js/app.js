@@ -75,6 +75,7 @@
     settingsUI.renderMemberCards();
     settingsUI.renderCategories();
     settingsUI.renderTier();
+    if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
     if (window.dashUI) dashUI.render();       // 看板按新身份刷新
@@ -163,6 +164,31 @@
     document.getElementById('w-finish').addEventListener('click', finishWizard);
   }
 
+  /* ---------------- 加密解锁（批次⑤） ---------------- */
+
+  function cryptoLocked() {
+    return window.fcCrypto && fcCrypto.available() && fcCrypto.isEnabled() && !fcCrypto.isUnlocked();
+  }
+
+  function showLockMask() {
+    document.getElementById('lock-mask').classList.remove('hidden');
+    document.getElementById('lock-pin').value = '';
+    document.getElementById('lock-err').textContent = '';
+    setTimeout(function () { document.getElementById('lock-pin').focus(); }, 100);
+  }
+
+  function doUnlock() {
+    var pin = document.getElementById('lock-pin').value.trim();
+    var err = document.getElementById('lock-err');
+    if (!/^\d{6}$/.test(pin)) { err.textContent = '请输入 6 位数字口令'; return; }
+    fcCrypto.unlock(pin).then(function (r) {
+      if (!r.ok) { err.textContent = r.errors[0]; return; }
+      document.getElementById('lock-mask').classList.add('hidden');
+      window.renderAll();
+      toast('已解锁');
+    });
+  }
+
   /* ---------------- 启动 ---------------- */
 
   function boot() {
@@ -183,11 +209,21 @@
     if (window.dashUI) dashUI.bind();
     bindWizard();
 
+    // 加密解锁遮罩
+    document.getElementById('lock-unlock').addEventListener('click', doUnlock);
+    document.getElementById('lock-pin').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') doUnlock();
+    });
+
     if (fcDb.isInitialized()) {
       document.getElementById('wizard').classList.add('hidden');
       document.getElementById('app-main').classList.remove('hidden');
-      window.renderAll();
-      showPage('ledger');
+      if (cryptoLocked()) {
+        showLockMask(); // 加密已开启但未解锁：先拦在遮罩，不渲染账目
+      } else {
+        window.renderAll();
+        showPage('ledger');
+      }
     } else {
       document.getElementById('app-main').classList.add('hidden');
       document.getElementById('wizard').classList.remove('hidden');

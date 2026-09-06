@@ -309,6 +309,71 @@
     document.getElementById('upgrade-sheet').classList.add('hidden');
   };
 
+  /* ---------------- 数据加密（批次⑤，Web Crypto） ---------------- */
+
+  S.renderCrypto = function () {
+    if (!window.fcCrypto || !fcCrypto.available()) {
+      var card = document.getElementById('btn-crypto-enable');
+      if (card) card.closest('.bg-white').classList.add('hidden');
+      return;
+    }
+    var on = fcCrypto.isEnabled();
+    var unlocked = fcCrypto.isUnlocked();
+    document.getElementById('crypto-off').classList.toggle('hidden', on);
+    document.getElementById('crypto-on').classList.toggle('hidden', !on);
+    var badge = document.getElementById('crypto-status');
+    badge.textContent = on ? (unlocked ? '已开启 · 解锁中' : '已锁定') : '未开启';
+    badge.className = 'text-[10px] font-normal ml-1 ' + (on ? 'text-indigo-500' : 'text-slate-400');
+  };
+
+  var cryptoSheetMode = 'enable';
+  S.openCryptoSheet = function (mode) {
+    cryptoSheetMode = mode || 'enable';
+    document.getElementById('crypto-sheet-title').textContent = mode === 'disable' ? '关闭数据加密' : '开启数据加密';
+    document.getElementById('crypto-confirm').textContent = mode === 'disable' ? '验证并关闭' : '确认开启';
+    document.getElementById('crypto-pin').value = '';
+    document.getElementById('crypto-pin2').value = '';
+    document.getElementById('crypto-pin2').classList.toggle('hidden', mode === 'disable');
+    document.getElementById('crypto-err').textContent = '';
+    document.getElementById('crypto-sheet').classList.remove('hidden');
+  };
+  S.closeCryptoSheet = function () {
+    document.getElementById('crypto-sheet').classList.add('hidden');
+  };
+
+  S.confirmCryptoSheet = function () {
+    var pin = document.getElementById('crypto-pin').value.trim();
+    var err = document.getElementById('crypto-err');
+    var btn = document.getElementById('crypto-confirm');
+    if (!/^\d{6}$/.test(pin)) { err.textContent = '口令需为 6 位数字'; return; }
+    if (cryptoSheetMode === 'enable') {
+      var pin2 = document.getElementById('crypto-pin2').value.trim();
+      if (pin !== pin2) { err.textContent = '两次输入不一致'; return; }
+      btn.disabled = true; btn.textContent = '加密中…';
+      fcCrypto.enable(pin).then(function (r) {
+        btn.disabled = false; btn.textContent = '确认开启';
+        if (!r.ok) { err.textContent = r.errors[0]; return; }
+        S.closeCryptoSheet();
+        global.toast('加密已开启');
+        global.renderAll();
+      });
+    } else {
+      btn.disabled = true; btn.textContent = '验证中…';
+      fcCrypto.disable(pin).then(function (r) {
+        btn.disabled = false; btn.textContent = '验证并关闭';
+        if (!r.ok) { err.textContent = r.errors[0]; return; }
+        S.closeCryptoSheet();
+        global.toast('加密已关闭，数据恢复明文存储');
+        location.reload();
+      });
+    }
+  };
+
+  S.lockNow = function () {
+    fcCrypto.lock();
+    location.reload();
+  };
+
   /* ---------------- 装配 ---------------- */
 
   S.bind = function () {
@@ -352,6 +417,14 @@
       S.setTier('family');
       S.closeUpgrade();
     });
+
+    // 数据加密（批次⑤）
+    document.getElementById('btn-crypto-enable').addEventListener('click', function () { S.openCryptoSheet('enable'); });
+    document.getElementById('btn-crypto-disable').addEventListener('click', function () { S.openCryptoSheet('disable'); });
+    document.getElementById('btn-crypto-lock').addEventListener('click', S.lockNow);
+    document.getElementById('crypto-sheet-mask').addEventListener('click', S.closeCryptoSheet);
+    document.getElementById('crypto-cancel').addEventListener('click', S.closeCryptoSheet);
+    document.getElementById('crypto-confirm').addEventListener('click', S.confirmCryptoSheet);
   };
 
   global.settingsUI = S;

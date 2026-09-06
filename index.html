@@ -12,6 +12,20 @@
     <!-- ============ 应用主界面 ============ -->
     <div id="app-main" class="hidden">
 
+        <!-- 加密解锁遮罩（批次⑤：加密开启且未解锁时全屏拦截） -->
+        <div id="lock-mask" class="hidden fixed inset-0 z-[60] bg-white">
+            <div class="max-w-[480px] mx-auto min-h-screen flex flex-col items-center justify-center p-6 text-center">
+                <span class="text-5xl mb-4">🔐</span>
+                <h2 class="font-bold text-slate-800 text-lg">账本已加密</h2>
+                <p class="text-sm text-slate-400 mt-2 mb-6 leading-relaxed">交易与结算数据受 6 位口令保护<br>（设置/分类等元数据不加密）</p>
+                <input id="lock-pin" type="password" inputmode="numeric" maxlength="6" placeholder="输入 6 位数字口令"
+                       class="w-48 text-center tracking-[0.5em] text-lg bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-400">
+                <button id="lock-unlock" class="mt-4 w-48 bg-indigo-600 text-white rounded-xl py-3 font-medium active:opacity-80">解锁</button>
+                <p id="lock-err" class="text-xs text-rose-500 mt-3 h-4"></p>
+                <p class="text-[11px] text-slate-300 mt-8">忘记口令将无法恢复数据，只能清空重建</p>
+            </div>
+        </div>
+
         <!-- 顶部栏 -->
         <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100">
             <div class="flex items-center justify-between px-4 h-14">
@@ -271,6 +285,19 @@
                     </div>
                 </div>
 
+                <!-- 数据加密（批次⑤，Web Crypto；默认关闭） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">🔐 数据加密 <span id="crypto-status" class="text-[10px] font-normal ml-1"></span></h2>
+                    <p class="text-xs text-slate-400 mb-3">开启后交易与结算数据以 AES-GCM 加密存储，口令派生密钥、不存本机；刷新后需口令解锁。忘记口令数据无法恢复</p>
+                    <div id="crypto-off" class="flex gap-2">
+                        <button id="btn-crypto-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启加密</button>
+                    </div>
+                    <div id="crypto-on" class="hidden grid grid-cols-2 gap-2">
+                        <button id="btn-crypto-lock" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">立即锁定</button>
+                        <button id="btn-crypto-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">关闭加密</button>
+                    </div>
+                </div>
+
                 <!-- 版本模式（商业化分层模拟，07-PRD §9） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">版本模式</h2>
@@ -394,6 +421,27 @@
             </div>
         </div>
 
+        <!-- 开启加密弹层（批次⑤） -->
+        <div id="crypto-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="crypto-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1" id="crypto-sheet-title">开启数据加密</h3>
+                    <p class="text-xs text-rose-500 mb-4">⚠️ 口令只存于派生密钥、不留存本机；忘记口令数据无法恢复，请务必牢记</p>
+                    <input id="crypto-pin" type="password" inputmode="numeric" maxlength="6" placeholder="6 位数字口令"
+                           class="w-full text-center tracking-[0.5em] text-lg bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 focus:outline-none focus:border-indigo-400">
+                    <input id="crypto-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="再输一次确认"
+                           class="w-full text-center tracking-[0.5em] text-lg bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-4 focus:outline-none focus:border-indigo-400">
+                    <p id="crypto-err" class="text-xs text-rose-500 mb-3 h-4"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="crypto-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="crypto-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">确认开启</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast -->
         <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2 rounded-full z-50 shadow-lg whitespace-nowrap"></div>
     </div>
@@ -462,6 +510,7 @@
 </div>
 
 <script src="js/db.js"></script>
+<script src="js/crypto.js"></script>
 <script src="js/privacy.js"></script>
 <script src="js/split.js"></script>
 <script src="js/dashboard.js"></script>

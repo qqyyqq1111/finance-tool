@@ -17,6 +17,7 @@
   };
   var currentMonth = null; // YYYY-MM
   var detailId = null;     // 详情弹层当前交易
+  var highlightId = null;  // v1.0.1：保存/编辑成功后新行高亮
 
   /* ---------------- 工具 ---------------- */
 
@@ -120,7 +121,9 @@
       var badge = t.privacy === 'private' ? ' 🔒' : (t.privacy === 'vault' ? ' 💰' : '');
       var owner = fcDb.findMember(t.ownerId);
       var btn = document.createElement('button');
-      btn.className = 'w-full flex items-center gap-3 bg-white border border-slate-200 rounded-2xl p-3 text-left active:bg-slate-50';
+      var hl = t.id === highlightId;
+      btn.className = 'w-full flex items-center gap-3 rounded-2xl p-3 text-left active:bg-slate-50 transition ' +
+        (hl ? 'bg-indigo-50 border-2 border-indigo-300' : 'bg-white border border-slate-200');
       btn.setAttribute('data-id', t.id);
       btn.innerHTML =
         '<span class="text-2xl leading-none">' + cat.icon + '</span>' +
@@ -324,11 +327,13 @@
     if (form.privacy === 'vault') data.vaultId = fcDb.getVaultOf(form.ownerId).id;
     var r = form.editingId ? fcDb.tx.update(form.editingId, data) : fcDb.tx.add(data);
     if (!r.ok) { global.toast(r.errors[0]); return; }
-    global.toast(form.editingId ? '已更新' : '记好啦');
+    highlightId = form.editingId || r.record.id;
+    global.toast(form.editingId ? '✓ 修改已保存' : '✓ 记好啦，已在明细列表中', 'success');
     var wasEdit = !!form.editingId;
     global.showPage('ledger');
     if (wasEdit) L.renderLedger();
     else { currentMonth = data.date.slice(0, 7); L.renderLedger(); }
+    setTimeout(function () { highlightId = null; }, 2600);
   }
 
   /* ---------------- 装配 ---------------- */

@@ -190,6 +190,8 @@
     document.getElementById('pin-input').value = '';
     document.getElementById('pin-input2').value = '';
     document.getElementById('pin-err').textContent = '';
+    // set 模式（含修改口令第二阶段）需显示"再输一次"框；其余模式只有一个输入框
+    document.getElementById('pin2-row').classList.toggle('hidden', pinMode !== 'set');
     document.getElementById('pin-sheet').classList.remove('hidden');
     setTimeout(function () { document.getElementById('pin-input').focus(); }, 80);
   };

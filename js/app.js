@@ -219,8 +219,14 @@
     if (window.dashUI) dashUI.bind();
     bindWizard();
 
-    // v1.1 云认证：登录态变化驱动设置页云卡片（未配置时回调 null，自动显示单机态）
+    // v1.1 云认证 + 配对链接直达：登录态变化驱动设置页云卡片（未配置时回调 null，自动显示单机态）
     if (window.cloud) {
+      // #/join?c=<secret> 邀请链接：先记下，登录后自动弹加入框（fragment 不进服务器日志）
+      var joinMatch = location.hash.match(/join\?c=([A-Za-z0-9]{8,24})/);
+      if (joinMatch && window.settingsUI && settingsUI.setPendingJoin) {
+        settingsUI.setPendingJoin(joinMatch[1]);
+        history.replaceState(null, '', location.pathname + location.search);
+      }
       cloud.onAuthChange(function (user) {
         if (window.settingsUI && settingsUI.setCloudUser) settingsUI.setCloudUser(user);
       });

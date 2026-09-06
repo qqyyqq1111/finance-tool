@@ -540,15 +540,43 @@
     bindCloud(); // v1.1 云同步（批次⑥）
   };
 
-  /* ---------------- 云同步（v1.1 批次⑥：账号认证；配对/同步在批次⑦⑧） ----------------
-   * 三态：云服务不可用（未配置/CDN失败）→ 未登录 → 已登录
-   * 登录态由 app.js boot 中 cloud.onAuthChange 回调统一驱动，UI 不自行拉取。 */
+  /* ---------------- 云同步（v1.1：账号认证 + 双人配对；同步引擎在批次⑧） ----------------
+   * 已登录卡片三种子态：未建家庭(nofamily) / 已建家庭(hasfamily) / 换设备无密钥(nokeys)
+   * 单机红线：未登录或未配对时不弹任何强制窗口、不影响 v1.0 任何功能（09-PRD §10）。 */
 
   var cloudUser = null;
+  var membership = null;   // {familyId, memberId, paired}（云端查询结果，null=未加载/未加入）
   var authMode = 'signin'; // signin | signup
   var cloudBound = false;
+  var pendingJoinCode = null; // #/join?c= 链接直达，登录后自动弹出加入
 
-  S.setCloudUser = function (user) { cloudUser = user; S.renderCloud(); };
+  S.setPendingJoin = function (code) { pendingJoinCode = code; };
+
+  S.setCloudUser = function (user) {
+    cloudUser = user;
+    membership = null;
+    S.renderCloud();
+    if (user && window.fcE2E && fcE2E.available()) {
+      fcE2E.fetchMembership().then(function (m) {
+        membership = m;
+        S.renderCloud();
+        // 链接直达：登录后自动弹加入框
+        if (m === null && pendingJoinCode) {
+          var code = pendingJoinCode; pendingJoinCode = null;
+          openJoinSheet(code);
+        }
+      });
+    } else if (!user && pendingJoinCode) {
+      // 链接直达但未登录：先弹登录框
+      openAuth('signin', '登录后将自动加入家庭');
+    }
+  };
+
+  /** 配对操作后刷新云端成员状态 */
+  function refreshPairing() {
+    if (!cloudUser || !window.fcE2E) return Promise.resolve();
+    return fcE2E.fetchMembership().then(function (m) { membership = m; S.renderCloud(); });
+  }
 
   S.renderCloud = function () {
     if (typeof global.cloud === 'undefined') return;
@@ -558,22 +586,53 @@
     document.getElementById('cloud-signedout').classList.toggle('hidden', !avail || !!cloudUser);
     document.getElementById('cloud-signedin').classList.toggle('hidden', !avail || !cloudUser);
     if (!avail) { badge.textContent = ''; return; }
-    if (cloudUser) {
-      badge.textContent = '已登录';
-      badge.className = 'text-[10px] font-normal ml-1 text-emerald-500';
-      document.getElementById('cloud-email').textContent = cloudUser.email || '';
-    } else {
+    if (!cloudUser) {
       badge.textContent = '未登录';
+      badge.className = 'text-[10px] font-normal ml-1 text-slate-400';
+      return;
+    }
+    document.getElementById('cloud-email').textContent = cloudUser.email || '';
+    var st = window.fcE2E ? fcE2E.state() : null;
+    var nofamily = document.getElementById('cloud-nofamily');
+    var hasfamily = document.getElementById('cloud-hasfamily');
+    var nokeys = document.getElementById('cloud-nokeys');
+    var hasCloudFamily = !!membership;
+    var keysReady = !!(st && (!membership || st.familyId === membership.familyId));
+    nofamily.classList.toggle('hidden', hasCloudFamily || !!st);
+    hasfamily.classList.toggle('hidden', !(hasCloudFamily && keysReady) && !(st && !membership));
+    nokeys.classList.toggle('hidden', !(hasCloudFamily && !keysReady));
+    if (hasCloudFamily && keysReady) {
+      badge.textContent = membership.paired ? '已配对' : '待加入';
+      badge.className = 'text-[10px] font-normal ml-1 ' + (membership.paired ? 'text-emerald-500' : 'text-amber-500');
+      var famName = (fcDb.getSettings() || {}).familyName || '我们的家';
+      var statusEl = document.getElementById('pair-status');
+      if (membership.paired) {
+        statusEl.innerHTML = '🎉 已与伴侣配对成功。家庭「<b class="text-slate-700">' + famName + '</b>」的公开账目将在同步功能开放后自动加密互通；私密账与小金库仍只属于你。';
+        document.getElementById('btn-pair-invite').classList.add('hidden');
+      } else {
+        statusEl.innerHTML = '🏠 家庭「<b class="text-slate-700">' + famName + '</b>」已创建，等待伴侣加入。把邀请链接发给 TA 即可完成配对。';
+        document.getElementById('btn-pair-invite').classList.remove('hidden');
+      }
+    } else if (st && !membership) {
+      badge.textContent = '配对中';
+      badge.className = 'text-[10px] font-normal ml-1 text-amber-500';
+    } else if (hasCloudFamily && !keysReady) {
+      badge.textContent = '待恢复';
+      badge.className = 'text-[10px] font-normal ml-1 text-amber-500';
+    } else {
+      badge.textContent = '未配对';
       badge.className = 'text-[10px] font-normal ml-1 text-slate-400';
     }
   };
 
-  function openAuth(mode) {
+  /* ---- 登录/注册弹层 ---- */
+
+  function openAuth(mode, hint) {
     authMode = mode || 'signin';
     document.getElementById('auth-title').textContent = authMode === 'signin' ? '登录云同步' : '注册云同步';
     document.getElementById('auth-submit').textContent = authMode === 'signin' ? '登录' : '注册';
     document.getElementById('auth-switch').textContent = authMode === 'signin' ? '没有账号？点此注册' : '已有账号？点此登录';
-    document.getElementById('auth-err').textContent = '';
+    document.getElementById('auth-err').textContent = hint || '';
     document.getElementById('auth-mask').classList.remove('hidden');
     setTimeout(function () { document.getElementById('auth-email').focus(); }, 80);
   }
@@ -592,15 +651,116 @@
       btn.disabled = false;
       btn.classList.remove('opacity-60');
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      document.getElementById('auth-password').value = '';
       S.closeAuth();
       toast(authMode === 'signup' ? '注册成功' : '登录成功', 'success');
-      // 登录态变化由 cloud.onAuthChange 回调驱动 renderCloud，此处不直接渲染
+      // 新设备登录：静默尝试用登录口令恢复密钥备份（失败静默，卡片会显示手动恢复入口）
+      if (window.fcE2E && fcE2E.available()) {
+        fcE2E.restoreKeys(pwd).then(function (rr) {
+          if (rr.ok) { toast('已从云端恢复本家庭密钥', 'success'); refreshPairing(); }
+        });
+      }
+      // 登录态变化由 cloud.onAuthChange 回调驱动 renderCloud
     });
   };
 
   S.signOutCloud = function () {
     global.cloud.signOut().then(function (r) {
+      membership = null;
       toast(r.ok ? '已退出登录，本机数据保留' : (r.errors[0] || '退出失败'));
+    });
+  };
+
+  /* ---- 配对弹层 ---- */
+
+  function sheet(id, show) { document.getElementById(id).classList.toggle('hidden', !show); }
+
+  function openCreateSheet() {
+    var s = fcDb.getSettings();
+    document.getElementById('pair-family-name').value = (s && s.familyName) || '我们的家';
+    document.getElementById('pair-create-pw').value = '';
+    document.getElementById('pair-create-err').textContent = '';
+    sheet('pair-create-sheet', true);
+  }
+
+  S.confirmCreateFamily = function () {
+    var name = document.getElementById('pair-family-name').value.trim();
+    var pw = document.getElementById('pair-create-pw').value;
+    var errEl = document.getElementById('pair-create-err');
+    var btn = document.getElementById('pair-create-confirm');
+    var s = fcDb.getSettings();
+    var me = s ? fcDb.findMember(s.currentViewer) : null;
+    errEl.textContent = '';
+    btn.disabled = true; btn.classList.add('opacity-60');
+    fcE2E.createFamily({ familyName: name, myName: me ? me.name : '', password: pw }).then(function (r) {
+      btn.disabled = false; btn.classList.remove('opacity-60');
+      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      sheet('pair-create-sheet', false);
+      toast('家庭创建成功，现在可以邀请伴侣了', 'success');
+      refreshPairing();
+    });
+  };
+
+  S.openInviteSheet = function () {
+    if (!fcE2E.state()) { toast('请先创建家庭'); return; }
+    var btn = document.getElementById('btn-pair-invite');
+    btn.disabled = true; btn.classList.add('opacity-60');
+    fcE2E.createInvite().then(function (r) {
+      btn.disabled = false; btn.classList.remove('opacity-60');
+      if (!r.ok) { toast(r.errors[0]); return; }
+      document.getElementById('invite-link').value = r.link;
+      document.getElementById('invite-short').textContent = r.short;
+      sheet('invite-sheet', true);
+    });
+  };
+
+  S.copyInvite = function () {
+    var link = document.getElementById('invite-link').value;
+    var done = function () { toast('邀请链接已复制，发给伴侣吧', 'success'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(done).catch(function () { fallbackCopy(link, done); });
+    } else { fallbackCopy(link, done); }
+  };
+  function fallbackCopy(text, done) {
+    var el = document.getElementById('invite-link');
+    el.select(); el.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败，请长按选择链接手动复制'); }
+  }
+
+  function openJoinSheet(prefill) {
+    document.getElementById('pair-join-code').value = prefill || '';
+    document.getElementById('pair-join-pw').value = '';
+    document.getElementById('pair-join-err').textContent = '';
+    sheet('pair-join-sheet', true);
+    setTimeout(function () { document.getElementById('pair-join-code').focus(); }, 80);
+  }
+
+  S.confirmJoin = function () {
+    var code = document.getElementById('pair-join-code').value;
+    var pw = document.getElementById('pair-join-pw').value;
+    var errEl = document.getElementById('pair-join-err');
+    var btn = document.getElementById('pair-join-confirm');
+    errEl.textContent = '';
+    btn.disabled = true; btn.classList.add('opacity-60');
+    fcE2E.redeemInvite(code, pw).then(function (r) {
+      btn.disabled = false; btn.classList.remove('opacity-60');
+      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      sheet('pair-join-sheet', false);
+      pendingJoinCode = null;
+      toast('已加入家庭，配对成功 🎉', 'success');
+      refreshPairing();
+    });
+  };
+
+  S.confirmRestoreKeys = function () {
+    var pw = document.getElementById('restore-pw').value;
+    var errEl = document.getElementById('restore-err');
+    errEl.textContent = '';
+    fcE2E.restoreKeys(pw).then(function (r) {
+      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      document.getElementById('restore-pw').value = '';
+      toast('密钥恢复成功', 'success');
+      refreshPairing();
     });
   };
 
@@ -611,7 +771,7 @@
     document.getElementById('btn-cloud-signout').addEventListener('click', S.signOutCloud);
     document.getElementById('auth-close').addEventListener('click', S.closeAuth);
     document.getElementById('auth-mask').addEventListener('click', function (e) {
-      if (e.target === this) S.closeAuth(); // 点遮罩空白处关闭
+      if (e.target === this) S.closeAuth();
     });
     document.getElementById('auth-switch').addEventListener('click', function () {
       openAuth(authMode === 'signin' ? 'signup' : 'signin');
@@ -619,6 +779,27 @@
     document.getElementById('auth-submit').addEventListener('click', S.submitAuth);
     document.getElementById('auth-password').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') S.submitAuth();
+    });
+
+    // 配对
+    document.getElementById('btn-pair-create').addEventListener('click', openCreateSheet);
+    document.getElementById('pair-create-mask').addEventListener('click', function () { sheet('pair-create-sheet', false); });
+    document.getElementById('pair-create-cancel').addEventListener('click', function () { sheet('pair-create-sheet', false); });
+    document.getElementById('pair-create-confirm').addEventListener('click', S.confirmCreateFamily);
+
+    document.getElementById('btn-pair-join').addEventListener('click', function () { openJoinSheet(); });
+    document.getElementById('pair-join-mask').addEventListener('click', function () { sheet('pair-join-sheet', false); });
+    document.getElementById('pair-join-cancel').addEventListener('click', function () { sheet('pair-join-sheet', false); });
+    document.getElementById('pair-join-confirm').addEventListener('click', S.confirmJoin);
+
+    document.getElementById('btn-pair-invite').addEventListener('click', S.openInviteSheet);
+    document.getElementById('invite-mask').addEventListener('click', function () { sheet('invite-sheet', false); });
+    document.getElementById('invite-close').addEventListener('click', function () { sheet('invite-sheet', false); });
+    document.getElementById('invite-copy').addEventListener('click', S.copyInvite);
+
+    document.getElementById('btn-restore-keys').addEventListener('click', S.confirmRestoreKeys);
+    document.getElementById('restore-pw').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') S.confirmRestoreKeys();
     });
   }
 

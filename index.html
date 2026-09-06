@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>双人家庭AI理财助手</title>
-    <script src="https://cdn.tailwindcss.com?v=1.0.1"></script>
+    <script src="https://cdn.tailwindcss.com?v=1.0.2"></script>
 </head>
 <body class="bg-slate-100">
 <div class="max-w-[480px] mx-auto min-h-screen bg-white relative shadow-sm">
@@ -112,7 +112,8 @@
                         <button data-v="private" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🔒 单笔私密</button>
                         <button data-v="vault" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">💰 小金库</button>
                     </div>
-                    <p id="f-privacy-hint" class="text-[11px] text-slate-400 mt-1.5"></p>
+                    <p id="f-privacy-hint" class="text-[11px] text-slate-400 mt-1.5 leading-relaxed"></p>
+                    <p class="text-[10px] text-slate-300 mt-1.5 leading-relaxed">一句话区分：私密账=对方知道你花了钱但不知道细节；小金库=对方完全不知道这笔钱存在</p>
                 </div>
 
                 <!-- 共同分摊开关 -->
@@ -333,7 +334,7 @@
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
                     <ul class="text-xs text-slate-500 space-y-1.5">
-                        <li>版本：v1.0.1（记账+三层隐私+身份锁+分摊结算+仪表盘+加密）</li>
+                        <li>版本：v1.0.2（记账+三层隐私+身份锁+分摊结算+仪表盘+加密）</li>
                         <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
                         <li>开源致谢：分摊算法思路参考 <span class="text-indigo-500">spliit</span>（MIT License）</li>
                         <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
@@ -344,22 +345,22 @@
 
         <!-- 底部导航 -->
         <nav class="fixed bottom-0 inset-x-0 z-30">
-            <div class="max-w-[480px] mx-auto bg-white border-t border-slate-200 grid grid-cols-5 items-end h-16 pb-1">
-                <button data-tab="ledger" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
-                    <span class="text-xl leading-none">📒</span><span>明细</span>
+            <div id="nav-grid" class="max-w-[480px] mx-auto bg-white border-t border-slate-200 grid grid-cols-5 items-end h-[62px] pb-2">
+                <button data-tab="ledger" class="nav-btn flex flex-col items-center justify-end text-[10px] leading-none pt-2">
+                    <span class="text-xl leading-none mb-1">📒</span><span>明细</span>
                 </button>
-                <button data-tab="split" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
-                    <span class="text-xl leading-none">⚖️</span><span>结算</span>
+                <button data-tab="split" class="nav-btn flex flex-col items-center justify-end text-[10px] leading-none pt-2">
+                    <span class="text-xl leading-none mb-1">⚖️</span><span>结算</span>
                 </button>
                 <button data-tab="add" class="flex flex-col items-center -translate-y-4">
                     <span class="w-14 h-14 rounded-full bg-indigo-600 text-white text-3xl leading-[3.5rem] text-center shadow-lg shadow-indigo-200 active:opacity-80">＋</span>
-                    <span class="text-[11px] text-slate-400 mt-0.5">记一笔</span>
+                    <span class="text-[10px] leading-none text-slate-400 mt-1">记一笔</span>
                 </button>
-                <button data-tab="dashboard" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
-                    <span class="text-xl leading-none">📊</span><span>看板</span>
+                <button data-tab="dashboard" class="nav-btn flex flex-col items-center justify-end text-[10px] leading-none pt-2">
+                    <span class="text-xl leading-none mb-1">📊</span><span>看板</span>
                 </button>
-                <button data-tab="settings" class="nav-btn flex flex-col items-center gap-0.5 text-[11px] pt-2">
-                    <span class="text-xl leading-none">⚙️</span><span>设置</span>
+                <button data-tab="settings" class="nav-btn flex flex-col items-center justify-end text-[10px] leading-none pt-2">
+                    <span class="text-xl leading-none mb-1">⚙️</span><span>设置</span>
                 </button>
             </div>
         </nav>
@@ -542,13 +543,13 @@
     </div>
 </div>
 
-<script src="js/db.js?v=1.0.1"></script>
-<script src="js/crypto.js?v=1.0.1"></script>
-<script src="js/privacy.js?v=1.0.1"></script>
-<script src="js/ledger.js?v=1.0.1"></script>
-<script src="js/split.js?v=1.0.1"></script>
-<script src="js/dashboard.js?v=1.0.1"></script>
-<script src="js/settings.js?v=1.0.1"></script>
-<script src="js/app.js?v=1.0.1"></script>
+<script src="js/db.js?v=1.0.2"></script>
+<script src="js/crypto.js?v=1.0.2"></script>
+<script src="js/privacy.js?v=1.0.2"></script>
+<script src="js/ledger.js?v=1.0.2"></script>
+<script src="js/split.js?v=1.0.2"></script>
+<script src="js/dashboard.js?v=1.0.2"></script>
+<script src="js/settings.js?v=1.0.2"></script>
+<script src="js/app.js?v=1.0.2"></script>
 </body>
 </html>

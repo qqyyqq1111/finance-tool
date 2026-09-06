@@ -63,6 +63,12 @@
     toggle(document.getElementById('cat-manage-card'), true);      // 分类管理（会员）
     var splitTab = document.querySelector('.nav-btn[data-tab="split"]');
     if (splitTab) splitTab.classList.toggle('hidden', !isFamily);  // 结算Tab
+    // v1.0.2：免费版隐藏结算Tab后，剩余4个Tab均分导航栏（5列→4列）
+    var navGrid = document.getElementById('nav-grid');
+    if (navGrid) {
+      navGrid.classList.toggle('grid-cols-5', isFamily);
+      navGrid.classList.toggle('grid-cols-4', !isFamily);
+    }
     // 免费版强制隐私=public（07-PRD §9：锁定public）
     if (!isFamily && window.ledger) ledger.forcePublicPrivacy && ledger.forcePublicPrivacy();
   };

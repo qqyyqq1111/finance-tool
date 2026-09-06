@@ -34,9 +34,11 @@
       btn.classList.toggle('font-semibold', active);
       btn.classList.toggle('text-slate-400', !active);
     });
+    // 明细页每次进入都重渲染（数据可能已变化）
+    if (name === 'ledger' && window.ledger) ledger.renderLedger();
   }
 
-  /* ---------------- 全局渲染（身份切换后全量重算） ---------------- */
+  /* ---------------- 全局渲染（身份切换后全量重算，07-PRD §3） ---------------- */
 
   window.renderAll = function () {
     var s = fcDb.getSettings();
@@ -44,6 +46,7 @@
     document.getElementById('app-title').textContent = s.familyName;
     settingsUI.renderViewerChip();
     settingsUI.renderMemberCards();
+    if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
   };
 
   /* ---------------- 初始化向导（07-PRD §2.4） ---------------- */
@@ -136,12 +139,14 @@
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { showPage(btn.getAttribute('data-tab')); });
     });
-    // 中央 ＋ 按钮
+    // 中央 ＋ 按钮：进入新账模式
     document.querySelector('[data-tab="add"]').addEventListener('click', function () {
+      ledger.newEntry();
       showPage('add');
     });
 
     settingsUI.bind();
+    ledger.bind();
     bindWizard();
 
     if (fcDb.isInitialized()) {

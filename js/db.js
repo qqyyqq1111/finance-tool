@@ -166,17 +166,25 @@
 
   /* ---------------- 交易（07-PRD §2.2 字段约束） ---------------- */
 
-  /** 单笔交易校验，返回 null 表示合法，否则返回错误文案 */
-  function validateTx(tx) {
+  /**
+   * 单笔交易校验，返回 null 表示合法，否则返回错误文案
+   * @param ctx 可选：导入备份时传入 { members, accounts }（此时备份尚未写入，校验须用备份数据而非当前存储）
+   */
+  function validateTx(tx, ctx) {
     if (typeof tx.amount !== 'number' || !isFinite(tx.amount) || tx.amount <= 0 || tx.amount > MAX_AMOUNT_CENTS) {
       return '金额必须是大于0且不超过9999万元的整数（分）';
     }
     if (TX_TYPES.indexOf(tx.type) < 0) return '收支类型非法';
     if (PRIVACY_LEVELS.indexOf(tx.privacy) < 0) return '隐私层级非法';
-    if (!tx.ownerId || !findMember(tx.ownerId)) return '归属人不存在';
+    var members = (ctx && ctx.members) || null;
+    var ownerOk = members
+      ? members.some(function (m) { return m.id === tx.ownerId; })
+      : !!findMember(tx.ownerId);
+    if (!tx.ownerId || !ownerOk) return '归属人不存在';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(tx.date || '')) return '日期格式应为 YYYY-MM-DD';
     if (tx.privacy === 'vault') {
-      var acc = (read('accounts') || []).filter(function (a) { return a.id === tx.vaultId; })[0];
+      var accs = (ctx && ctx.accounts) || read('accounts') || [];
+      var acc = accs.filter(function (a) { return a.id === tx.vaultId; })[0];
       if (!acc || acc.type !== 'vault') return '小金库账户不存在';
       if (acc.ownerId !== tx.ownerId) return '小金库账目必须归属本人';
       if (tx.shared) return '小金库账目不参与共同分摊';
@@ -288,7 +296,8 @@
     });
     if (errors.length) return { ok: false, errors: errors };
     (obj.data.transactions || []).forEach(function (t, i) {
-      var err = validateTx(t);
+      // 用备份自带数据校验（此时备份尚未写入，当前存储不可依赖）
+      var err = validateTx(t, { accounts: obj.data.accounts, members: obj.data.settings.members });
       if (err) errors.push('第' + (i + 1) + '笔账目非法：' + err);
     });
     if (errors.length) return { ok: false, errors: errors };

@@ -292,7 +292,7 @@
                 </div>
 
                 <!-- 云同步（v1.1：双人跨设备，端到端加密；批次⑥先上账号认证） -->
-                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                <div id="cloud-sync-card" class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">☁️ 双人云同步 <span id="cloud-badge" class="text-[10px] font-normal ml-1 text-slate-400"></span></h2>
                     <!-- 态1：云服务未配置（CDN 失败或部署时未填 Supabase 配置） -->
                     <div id="cloud-unavailable" class="hidden">
@@ -320,7 +320,17 @@
                         <div id="cloud-hasfamily" class="hidden">
                             <p id="pair-status" class="text-xs text-slate-500 mb-2 leading-relaxed"></p>
                             <button id="btn-pair-invite" class="hidden w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">邀请伴侣加入</button>
-                            <p id="pair-sync-hint" class="text-[11px] text-slate-400 mt-2 leading-relaxed">自动同步将在下个版本开放；当前配对信息已为同步做好准备。</p>
+                            <!-- 同步状态区（已配对时显示，批次⑨） -->
+                            <div id="sync-status-area" class="hidden mt-3 p-3 bg-slate-50 rounded-xl">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-[11px] text-slate-400">同步状态</span>
+                                    <span id="sync-status-text" class="text-[11px] font-medium text-slate-500">未知</span>
+                                </div>
+                                <p id="sync-last-time" class="text-[11px] text-slate-400 leading-relaxed">尚未同步</p>
+                                <button id="btn-manual-sync" class="mt-2 w-full bg-indigo-600 text-white text-sm rounded-lg py-2 active:opacity-80">立即同步</button>
+                                <p id="sync-error-msg" class="hidden text-[11px] text-rose-500 mt-1.5 leading-relaxed"></p>
+                            </div>
+                            <p id="pair-sync-hint" class="text-[11px] text-slate-400 mt-2 leading-relaxed hidden">公开账目自动加密同步；私密账对方仅见占位行；小金库不上传共享区。</p>
                         </div>
 
                         <!-- 3c：换设备——云端有家庭但本机无密钥 -->

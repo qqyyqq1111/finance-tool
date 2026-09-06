@@ -485,9 +485,22 @@
   function updateSyncBadge(state) {
     var el = document.getElementById('sync-badge');
     if (!el) return;
-    var labels = { ok: '✅', syncing: '🔄', error: '⚠️', idle: '' };
+    var labels = { ok: '✅', syncing: '🔄', error: '⚠️', idle: '', pending: '⏳' };
     el.textContent = labels[state] || '';
+    // 同步刷新设置页同步状态区
+    if (global.settingsUI && global.settingsUI.renderSyncStatus) global.settingsUI.renderSyncStatus();
   }
+
+  /** 渲染顶部 sync-badge（从 getSyncState 推导；app.js renderAll 调用） */
+  S.renderBadge = function () {
+    var st = getSt();
+    if (!st || !sb()) {
+      var el = document.getElementById('sync-badge');
+      if (el) el.textContent = '';
+      return;
+    }
+    updateSyncBadge(S.getSyncState());
+  };
 
   S.getSyncState = function () {
     if (syncing) return 'syncing';

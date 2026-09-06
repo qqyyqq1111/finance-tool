@@ -607,11 +607,17 @@
       var famName = (fcDb.getSettings() || {}).familyName || '我们的家';
       var statusEl = document.getElementById('pair-status');
       if (membership.paired) {
-        statusEl.innerHTML = '🎉 已与伴侣配对成功。家庭「<b class="text-slate-700">' + famName + '</b>」的公开账目将在同步功能开放后自动加密互通；私密账与小金库仍只属于你。';
+        statusEl.innerHTML = '🎉 已与伴侣配对成功。家庭「<b class="text-slate-700">' + famName + '</b>」的公开账目自动加密互通；私密账对方仅见占位行；小金库不上传共享区。';
         document.getElementById('btn-pair-invite').classList.add('hidden');
+        // 显示同步状态区（批次⑨）
+        document.getElementById('sync-status-area').classList.remove('hidden');
+        document.getElementById('pair-sync-hint').classList.remove('hidden');
+        S.renderSyncStatus();
       } else {
         statusEl.innerHTML = '🏠 家庭「<b class="text-slate-700">' + famName + '</b>」已创建，等待伴侣加入。把邀请链接发给 TA 即可完成配对。';
         document.getElementById('btn-pair-invite').classList.remove('hidden');
+        document.getElementById('sync-status-area').classList.add('hidden');
+        document.getElementById('pair-sync-hint').classList.add('hidden');
       }
     } else if (st && !membership) {
       badge.textContent = '配对中';
@@ -624,6 +630,63 @@
       badge.className = 'text-[10px] font-normal ml-1 text-slate-400';
     }
   };
+
+  /* ---- 同步状态渲染 + 手动同步（批次⑨） ---- */
+
+  S.renderSyncStatus = function () {
+    var area = document.getElementById('sync-status-area');
+    if (!area || area.classList.contains('hidden')) return;
+    var stateText = document.getElementById('sync-status-text');
+    var lastTime = document.getElementById('sync-last-time');
+    var errMsg = document.getElementById('sync-error-msg');
+    var btn = document.getElementById('btn-manual-sync');
+    if (!stateText) return;
+
+    var state = (window.fcSync) ? fcSync.getSyncState() : 'idle';
+    var labels = {
+      'ok': '✅ 已同步',
+      'syncing': '🔄 同步中…',
+      'pending': '⏳ 待同步',
+      'error': '⚠️ 同步失败',
+      'idle': '尚未同步'
+    };
+    stateText.textContent = labels[state] || '未知';
+    stateText.className = 'text-[11px] font-medium ' + (state === 'error' ? 'text-rose-500' : state === 'syncing' ? 'text-indigo-500' : state === 'ok' ? 'text-emerald-500' : 'text-slate-500');
+
+    // 上次同步时间
+    var lastPull = parseInt(localStorage.getItem('fc_sync_last_pull') || '0', 10) || 0;
+    if (lastPull) {
+      var d = new Date(lastPull);
+      lastTime.textContent = '上次同步：' + d.getMonth() + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    } else {
+      lastTime.textContent = '尚未同步';
+    }
+
+    // 错误提示
+    if (state === 'error') {
+      errMsg.classList.remove('hidden');
+      errMsg.textContent = '点击"立即同步"重试';
+      btn.textContent = '重试同步';
+    } else {
+      errMsg.classList.add('hidden');
+      btn.textContent = state === 'syncing' ? '同步中…' : '立即同步';
+    }
+    btn.disabled = state === 'syncing';
+    btn.classList.toggle('opacity-60', state === 'syncing');
+  };
+
+  S.manualSync = function () {
+    if (!window.fcSync) return;
+    fcSync.syncNow().then(function (r) {
+      if (r.ok) {
+        toast('同步完成（推送' + (r.pushed || 0) + '条，拉取' + (r.pulled || 0) + '条）', 'success');
+      } else {
+        toast((r.errors && r.errors[0]) || '同步失败', 'error');
+      }
+      S.renderSyncStatus();
+    });
+  };
+
 
   /* ---- 登录/注册弹层 ---- */
 
@@ -768,7 +831,16 @@
     if (cloudBound) return;
     cloudBound = true;
     document.getElementById('btn-cloud-auth').addEventListener('click', function () { openAuth('signin'); });
+    // 免费版点击云同步卡片 → 升级弹层（批次⑨门控）
+    var cloudCardEl = document.getElementById('cloud-sync-card');
+    if (cloudCardEl) {
+      cloudCardEl.addEventListener('click', function () {
+        if (cloudCardEl.dataset.gated === '1') { S.openUpgrade(); }
+      }, true); // capture：拦截子元素点击
+    }
     document.getElementById('btn-cloud-signout').addEventListener('click', S.signOutCloud);
+    var syncBtn = document.getElementById('btn-manual-sync');
+    if (syncBtn) syncBtn.addEventListener('click', S.manualSync);
     document.getElementById('auth-close').addEventListener('click', S.closeAuth);
     document.getElementById('auth-mask').addEventListener('click', function (e) {
       if (e.target === this) S.closeAuth();

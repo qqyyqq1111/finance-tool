@@ -9,8 +9,8 @@
   'use strict';
 
   /* ---- 配置（部署时替换；留空则云功能不可用，应用退化为单机模式） ---- */
-  var SUPABASE_URL = '';      // 例：https://xxxxxxxx.supabase.co
-  var SUPABASE_ANON_KEY = ''; // 例：eyJhbGciOi...（anon/public key，可公开）
+  var SUPABASE_URL = 'https://vvbasvrbxscprmnvbvwm.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_UdkIEsYLmX3iLoKIqO29vg_D8qWNrX7';
 
   var C = {};
   var client = null;

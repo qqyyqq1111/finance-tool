@@ -303,11 +303,38 @@
                         <p class="text-xs text-slate-400 mb-3 leading-relaxed">登录账号后，两台手机的账目将自动加密同步。数据在上传前已在本机加密，云端只存密文。</p>
                         <button id="btn-cloud-auth" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">登录 / 注册</button>
                     </div>
-                    <!-- 态3：已登录（配对入口在批次⑦） -->
+                    <!-- 态3：已登录（配对与同步，v1.1 批次⑦起） -->
                     <div id="cloud-signedin" class="hidden">
-                        <p class="text-xs text-slate-500 mb-1">已登录：<span id="cloud-email" class="font-medium text-slate-700"></span></p>
-                        <p id="cloud-pair-hint" class="text-xs text-slate-400 mb-3">双人配对与自动同步即将开放，当前登录态已为同步做好准备。</p>
-                        <button id="btn-cloud-signout" class="w-full bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">退出登录（保留本机数据）</button>
+                        <p class="text-xs text-slate-500 mb-3">已登录：<span id="cloud-email" class="font-medium text-slate-700"></span></p>
+
+                        <!-- 3a：未建/未加入家庭 -->
+                        <div id="cloud-nofamily">
+                            <p class="text-xs text-slate-400 mb-3 leading-relaxed">两个人各自登录后，一方创建家庭并发出邀请，另一方输入邀请码即完成配对。配对前所有数据仍只保存在本机。</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="btn-pair-create" class="bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">创建家庭</button>
+                                <button id="btn-pair-join" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">输入邀请码</button>
+                            </div>
+                        </div>
+
+                        <!-- 3b：已建/已加入家庭 -->
+                        <div id="cloud-hasfamily" class="hidden">
+                            <p id="pair-status" class="text-xs text-slate-500 mb-2 leading-relaxed"></p>
+                            <button id="btn-pair-invite" class="hidden w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">邀请伴侣加入</button>
+                            <p id="pair-sync-hint" class="text-[11px] text-slate-400 mt-2 leading-relaxed">自动同步将在下个版本开放；当前配对信息已为同步做好准备。</p>
+                        </div>
+
+                        <!-- 3c：换设备——云端有家庭但本机无密钥 -->
+                        <div id="cloud-nokeys" class="hidden">
+                            <p class="text-xs text-slate-400 mb-2 leading-relaxed">检测到你的账号已加入家庭，但这台设备还没有解密密钥。输入登录密码即可从云端备份恢复（密码只在本机用于派生密钥，不会上传）。</p>
+                            <div class="flex gap-2">
+                                <input id="restore-pw" type="password" placeholder="登录密码"
+                                       class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
+                                <button id="btn-restore-keys" class="bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">恢复</button>
+                            </div>
+                            <p id="restore-err" class="text-xs text-rose-500 mt-2 min-h-[1rem]"></p>
+                        </div>
+
+                        <button id="btn-cloud-signout" class="mt-3 w-full bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">退出登录（保留本机数据）</button>
                     </div>
                 </div>
 
@@ -538,6 +565,75 @@
             </div>
         </div>
 
+        <!-- ============ v1.1 双人配对弹层（批次⑦） ============ -->
+
+        <!-- 创建家庭 -->
+        <div id="pair-create-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="pair-create-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">创建家庭</h3>
+                    <p class="text-xs text-slate-400 mb-4 leading-relaxed">你将成为家庭的创建者。创建后生成邀请链接发给伴侣，对方打开即可加入。云端只存密文，家庭名也会加密。</p>
+                    <label class="text-xs text-slate-500">家庭名称</label>
+                    <input id="pair-family-name" type="text" maxlength="20" placeholder="我们的家"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm mt-1 mb-3 focus:outline-none focus:border-indigo-400">
+                    <label class="text-xs text-slate-500">登录密码（用于在新设备恢复密钥，不会上传明文）</label>
+                    <input id="pair-create-pw" type="password" placeholder="你的云账号登录密码"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm mt-1 mb-1 focus:outline-none focus:border-indigo-400">
+                    <p id="pair-create-err" class="text-xs text-rose-500 mb-3 min-h-[1rem]"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="pair-create-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="pair-create-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 邀请伴侣（链接 + 短码） -->
+        <div id="invite-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="invite-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">邀请伴侣加入</h3>
+                    <p class="text-xs text-slate-400 mb-4 leading-relaxed">把下面的邀请链接发给伴侣（微信/短信均可）。对方需先注册登录本应用，打开链接即自动加入；链接 <b>24 小时有效、用后即焚</b>。</p>
+                    <p class="text-xs text-slate-500 mb-1">邀请链接（含密钥，请勿发到公开场合）：</p>
+                    <div class="flex gap-2 mb-3">
+                        <input id="invite-link" readonly class="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-600">
+                        <button id="invite-copy" class="shrink-0 bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">复制</button>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-1">口头不方便发链接时，可让伴侣手动输入 8 位短码：</p>
+                    <p id="invite-short" class="text-center text-2xl tracking-[0.4em] font-bold text-indigo-600 bg-indigo-50 rounded-xl py-3 mb-2"></p>
+                    <p class="text-[11px] text-slate-400 leading-relaxed mb-3">短码同样 24 小时有效、只能使用一次；若超时或已被使用，重新生成一个即可。</p>
+                    <button id="invite-close" class="w-full bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">完成</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入邀请码加入 -->
+        <div id="pair-join-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="pair-join-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">加入伴侣的家庭</h3>
+                    <p class="text-xs text-slate-400 mb-4 leading-relaxed">粘贴伴侣发来的邀请链接，或手动输入 8 位短码。加入后双方的公开账目会加密同步；你的私密账和小金库对方依然看不到。</p>
+                    <label class="text-xs text-slate-500">邀请链接 / 短码</label>
+                    <input id="pair-join-code" type="text" placeholder="粘贴链接或输入 8 位短码"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm mt-1 mb-3 focus:outline-none focus:border-indigo-400">
+                    <label class="text-xs text-slate-500">登录密码（用于在新设备恢复你的密钥，不会上传明文）</label>
+                    <input id="pair-join-pw" type="password" placeholder="你的云账号登录密码"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm mt-1 mb-1 focus:outline-none focus:border-indigo-400">
+                    <p id="pair-join-err" class="text-xs text-rose-500 mb-3 min-h-[1rem]"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="pair-join-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="pair-join-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">加入家庭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast -->
         <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2 rounded-full z-50 shadow-lg whitespace-nowrap"></div>
     </div>
@@ -609,6 +705,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="js/db.js?v=1.1.0"></script>
 <script src="js/cloud.js?v=1.1.0"></script>
+<script src="js/e2e.js?v=1.1.0"></script>
 <script src="js/crypto.js?v=1.1.0"></script>
 <script src="js/privacy.js?v=1.1.0"></script>
 <script src="js/ledger.js?v=1.1.0"></script>

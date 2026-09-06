@@ -28,9 +28,9 @@ create table if not exists public.family_members (
 create table if not exists public.invites (
   id             uuid primary key default gen_random_uuid(),
   family_id      uuid not null references public.families(id) on delete cascade,
-  enc_family_key text not null,                       -- familyKey 用邀请码派生密钥加密后的密文
+  enc_family_key text not null,                       -- familyKey 双路包装密文 JSON：{s:链接secret包装, c:短码包装}，均为 AES-GCM(PBKDF2(码))
   code_hash      text not null,                       -- 24字符链接 secret 的 SHA-256（不存明文）
-  short_code     text not null,                       -- 8位人类可读短码（辅助，哈希存储见 RPC 校验）
+  short_code     text not null,                       -- 8位人类可读短码（辅助兜底，明文存储靠 RLS+24h+一次性兜底）
   expires_at     timestamptz not null,
   used           boolean not null default false,
   attempts       int not null default 0,
@@ -93,6 +93,9 @@ create policy families_select on public.families
 drop policy if exists families_insert on public.families;
 create policy families_insert on public.families
   for insert with check (created_by = auth.uid());
+drop policy if exists families_update on public.families;
+create policy families_update on public.families
+  for update using (created_by = auth.uid()) with check (created_by = auth.uid());
 
 -- family_members：同家庭可读；本人可写入自己的成员行（配对 RPC 也会用）
 drop policy if exists members_select on public.family_members;
@@ -101,6 +104,9 @@ create policy members_select on public.family_members
 drop policy if exists members_insert on public.family_members;
 create policy members_insert on public.family_members
   for insert with check (user_id = auth.uid());
+drop policy if exists members_update on public.family_members;
+create policy members_update on public.family_members
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- invites：仅创建者可读/可写；兑换走 RPC（SECURITY DEFINER）
 drop policy if exists invites_creator on public.invites;
@@ -169,3 +175,13 @@ $$;
 -- 兑换 RPC 授予已登录用户执行权
 grant execute on function public.redeem_invite(text) to authenticated;
 grant execute on function public.is_family_member(uuid) to authenticated;
+
+-- ============================================================
+-- 表级授权（Supabase 新项目不会自动给新表 GRANT，RLS 之外仍需表权限）
+-- 幂等：重复执行无副作用；anon 角色不授权（未登录用户只能走 GoTrue 认证接口）
+-- ============================================================
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+-- 未来新增表默认授权（本版本表已全部建完，属防御性配置）
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;

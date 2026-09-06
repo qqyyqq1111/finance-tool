@@ -34,7 +34,7 @@
         '<span class="text-3xl">' + m.emoji + '</span>' +
         '<p class="mt-1 font-medium text-slate-800">' + m.name + (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>' : '') + '</p>' +
         '<button class="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '">✏️ 编辑</button>';
-      btn.addEventListener('click', function () { S.switchViewer(m.id); });
+      btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       var edit = btn.querySelector('[data-edit]');
       edit.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -100,7 +100,7 @@
         '<span class="text-2xl">' + m.emoji + '</span>' +
         '<span class="flex-1 font-medium text-slate-800">' + m.name + '</span>' +
         (active ? '<span class="text-xs text-indigo-500">✓ 当前</span>' : '<span class="text-xs text-slate-300">切换</span>');
-      btn.addEventListener('click', function () { S.switchViewer(m.id); });
+      btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       box.appendChild(btn);
     });
   };
@@ -122,6 +122,118 @@
     var me = fcDb.findMember(memberId);
     global.toast('已切换为 ' + me.name + ' 的视角');
     global.renderAll();
+  };
+
+  /* ---------------- 身份切换锁（v1.0.1，R9：切换身份需 PIN） ---------------- */
+
+  var pinVerified = false;      // 本次会话已验证（刷新后需重新输入）
+  var pinPendingMember = null;  // 待切换目标
+  var pinMode = 'verify';       // verify | set | disable | change-old
+
+  function identityLock() {
+    var s = fcDb.getSettings();
+    return s && s.identityLock && s.identityLock.enabled ? s.identityLock : null;
+  }
+
+  /** 所有"切换身份"入口统一走这里：开了锁且本会话未验证 → 先要 PIN */
+  S.requestSwitch = function (memberId) {
+    var cur = fcDb.getCurrentViewer();
+    if (memberId === cur) { S.closeViewerSheet(); return; } // 点自己=关弹层
+    var lock = identityLock();
+    if (lock && !pinVerified) {
+      pinPendingMember = memberId;
+      S.openPinSheet('verify');
+      return;
+    }
+    S.switchViewer(memberId);
+  };
+
+  S.renderIdentityLock = function () {
+    var lock = identityLock();
+    var badge = document.getElementById('idlock-status');
+    var off = document.getElementById('idlock-off');
+    var on = document.getElementById('idlock-on');
+    if (!badge) return;
+    badge.textContent = lock ? '已开启' : '未开启';
+    badge.className = 'text-[10px] font-normal ml-1 ' + (lock ? 'text-indigo-500' : 'text-slate-400');
+    off.classList.toggle('hidden', !!lock);
+    on.classList.toggle('hidden', !lock);
+  };
+
+  S.openPinSheet = function (mode) {
+    pinMode = mode || 'verify';
+    var titles = {
+      verify: '验证身份锁',
+      set: '设置切换口令',
+      'change-old': '修改口令 · 先验证旧口令',
+      disable: '关闭身份锁'
+    };
+    document.getElementById('pin-title').textContent = titles[pinMode];
+    document.getElementById('pin-hint').textContent =
+      pinMode === 'verify' ? '切换到其他成员视角需要输入切换口令' :
+      pinMode === 'set' ? '6 位数字；之后任何人在本机切换身份都需输入（请双方共同保管）' :
+      pinMode === 'change-old' ? '输入当前口令，验证后设置新口令' :
+      '输入口令确认关闭（关闭后可自由切换身份）';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-input2').value = '';
+    document.getElementById('pin-err').textContent = '';
+    document.getElementById('pin-sheet').classList.remove('hidden');
+    setTimeout(function () { document.getElementById('pin-input').focus(); }, 80);
+  };
+
+  S.closePinSheet = function () {
+    document.getElementById('pin-sheet').classList.add('hidden');
+    pinPendingMember = null;
+  };
+
+  S.confirmPin = function () {
+    var err = document.getElementById('pin-err');
+    var pin = document.getElementById('pin-input').value.trim();
+    if (!/^\d{6}$/.test(pin)) { err.textContent = '请输入 6 位数字'; return; }
+    var s = fcDb.getSettings();
+    var lock = identityLock();
+
+    if (pinMode === 'set') {
+      var pin2 = document.getElementById('pin-input2').value.trim();
+      if (pin !== pin2) { err.textContent = '两次输入不一致'; return; }
+      var salt = fcCrypto.randomSalt();
+      fcCrypto.deriveHash(pin, salt).then(function (hash) {
+        s.identityLock = { enabled: true, salt: salt, hash: hash, iterations: 150000 };
+        s.updatedAt = Date.now();
+        fcDb._cryptoBridge.rawWrite('settings', s);
+        pinVerified = true;
+        S.closePinSheet();
+        global.toast('身份锁已开启，切换视角需口令', 'success');
+        global.renderAll();
+      });
+      return;
+    }
+    if (!lock) { err.textContent = '尚未开启身份锁'; return; }
+    fcCrypto.deriveHash(pin, lock.salt, lock.iterations).then(function (hash) {
+      if (hash !== lock.hash) { err.textContent = '口令错误'; return; }
+      if (pinMode === 'verify') {
+        pinVerified = true;
+        var target = pinPendingMember;
+        S.closePinSheet();
+        if (target) S.switchViewer(target);
+        return;
+      }
+      if (pinMode === 'disable') {
+        s.identityLock = { enabled: false, salt: null, hash: null, iterations: 150000 };
+        s.updatedAt = Date.now();
+        fcDb._cryptoBridge.rawWrite('settings', s);
+        pinVerified = false;
+        S.closePinSheet();
+        global.toast('身份锁已关闭');
+        global.renderAll();
+        return;
+      }
+      if (pinMode === 'change-old') {
+        pinVerified = true;
+        S.openPinSheet('set');
+        return;
+      }
+    });
   };
 
   /* ---------------- 数据备份（07-PRD §8） ---------------- */
@@ -151,48 +263,10 @@
     reader.readAsText(file, 'utf-8');
   };
 
-  /* ---------------- 开发者自测（批次①验收工具） ---------------- */
-
-  var DEMO_TX = [
-    { type: 'expense', privacy: 'public',  note: '示例：一起吃火锅（公开·参与分摊）' },
-    { type: 'expense', privacy: 'private', note: '示例：给对方买礼物（单笔私密）' },
-    { type: 'expense', privacy: 'vault',   note: '示例：偷偷存小金库（完全隐藏）' },
-    { type: 'income',  privacy: 'public',  note: '示例：发工资啦' }
-  ];
-
-  S.seedDemo = function () {
-    var s = fcDb.getSettings();
-    var today = new Date().toISOString().slice(0, 10);
-    var results = DEMO_TX.map(function (d, i) {
-      var ownerId = s.members[i % 2].id;
-      var data = {
-        date: today,
-        type: d.type,
-        amount: 12800 + i * 1000, // 128元 起
-        categoryId: d.type === 'income' ? 'c_salary' : 'c_food',
-        ownerId: ownerId,
-        privacy: d.privacy,
-        note: d.note
-      };
-      if (d.privacy === 'vault') data.vaultId = fcDb.getVaultOf(ownerId).id;
-      return fcDb.tx.add(data);
-    });
-    var okCount = results.filter(function (r) { return r.ok; }).length;
-    global.toast('示例账目写入 ' + okCount + '/' + DEMO_TX.length + ' 笔（明细列表批次②上线）');
-  };
-
-  S.healthCheck = function () {
-    var h = fcDb.healthCheck();
-    var box = document.getElementById('check-result');
-    box.textContent = '账目 ' + h.transactions + ' 笔（非法 ' + h.invalid + ' 笔）｜成员 ' + h.members +
-      '｜分类 ' + h.categories + '｜账户 ' + h.accounts + '｜存储占用 ' + h.storageKB + ' KB';
-    box.classList.remove('hidden');
-    global.toast(h.invalid === 0 ? '体检通过 ✓' : '发现非法数据！');
-  };
-
+  /** 退出当前家庭：清空本机全部数据 → 回到初始化向导（v1.0.1，R8） */
   S.resetAll = function () {
-    var input = global.prompt('此操作将清空本设备全部账本数据且无法恢复。\n输入 DELETE 确认：');
-    if (input !== 'DELETE') { global.toast('已取消'); return; }
+    var input = global.prompt('将清空本机全部账本数据（含双方账目、结算、备份外的所有记录），用于退出当前家庭重新开始。\n此操作不可恢复！确认请输入：退出');
+    if (input !== '退出') { global.toast('已取消'); return; }
     fcDb.resetAll();
     location.reload();
   };
@@ -384,9 +458,16 @@
       S.importJson(e.target.files[0]);
       e.target.value = '';
     });
-    document.getElementById('btn-seed').addEventListener('click', S.seedDemo);
-    document.getElementById('btn-check').addEventListener('click', S.healthCheck);
+    // 退出当前家庭（清空重建）
     document.getElementById('btn-reset').addEventListener('click', S.resetAll);
+
+    // 身份切换锁（v1.0.1）
+    document.getElementById('idlock-enable').addEventListener('click', function () { S.openPinSheet('set'); });
+    document.getElementById('idlock-change').addEventListener('click', function () { S.openPinSheet('change-old'); });
+    document.getElementById('idlock-disable').addEventListener('click', function () { S.openPinSheet('disable'); });
+    document.getElementById('pin-sheet-mask').addEventListener('click', S.closePinSheet);
+    document.getElementById('pin-cancel').addEventListener('click', S.closePinSheet);
+    document.getElementById('pin-confirm').addEventListener('click', S.confirmPin);
 
     // 成员编辑弹层
     document.getElementById('member-sheet-mask').addEventListener('click', S.closeMemberSheet);

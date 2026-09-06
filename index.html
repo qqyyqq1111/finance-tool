@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>双人家庭AI理财助手</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?v=1.0.1"></script>
 </head>
 <body class="bg-slate-100">
 <div class="max-w-[480px] mx-auto min-h-screen bg-white relative shadow-sm">
@@ -287,8 +287,9 @@
 
                 <!-- 数据加密（批次⑤，Web Crypto；默认关闭） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
-                    <h2 class="font-semibold text-slate-800 mb-1">🔐 数据加密 <span id="crypto-status" class="text-[10px] font-normal ml-1"></span></h2>
-                    <p class="text-xs text-slate-400 mb-3">开启后交易与结算数据以 AES-GCM 加密存储，口令派生密钥、不存本机；刷新后需口令解锁。忘记口令数据无法恢复</p>
+                    <h2 class="font-semibold text-slate-800 mb-1">🔐 数据加密（进阶保护） <span id="crypto-status" class="text-[10px] font-normal ml-1"></span></h2>
+                    <p class="text-xs text-slate-400 mb-1">这是干嘛的？给整本账再加一把锁：开启后，账目数据在本机以密文保存——即使别人借用你的电脑浏览器、或拿到导出文件，没有口令也读不出任何账目内容。</p>
+                    <p class="text-xs text-slate-400 mb-3">不开也行：默认已有三层隐私 + 身份切换锁保护。开启后每次刷新需输 6 位口令解锁；忘记口令数据无法恢复，请谨慎设置。</p>
                     <div id="crypto-off" class="flex gap-2">
                         <button id="btn-crypto-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启加密</button>
                     </div>
@@ -300,31 +301,39 @@
 
                 <!-- 版本模式（商业化分层模拟，07-PRD §9） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
-                    <h2 class="font-semibold text-slate-800 mb-1">版本模式</h2>
-                    <p class="text-xs text-slate-400 mb-3">模拟 SaaS 分层（作品集演示用）：免费版仅单人公开记账；双人协作/隐私/结算为家庭会员功能</p>
+                    <h2 class="font-semibold text-slate-800 mb-1">版本模式 <span class="text-[10px] font-normal text-slate-400 ml-1">演示功能</span></h2>
+                    <p class="text-xs text-slate-400 mb-3">这是作品集里的"商业化解锁"演示：模拟免费版 vs 会员版的差别，可以随意切换玩玩，不影响你的任何数据，随时切回来就行。免费版会隐藏双人协作相关入口（结算/身份切换/隐私/小金库/CSV 导出），家庭会员版 = 全功能。</p>
                     <div class="flex gap-2">
                         <button id="tier-free" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-slate-100 text-slate-500">免费版</button>
                         <button id="tier-family" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-indigo-600 text-white">家庭会员版</button>
                     </div>
                 </div>
 
-                <!-- 开发者自测（批次①验收工具，v1.0 发布前可移除） -->
-                <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-4">
-                    <h2 class="font-semibold text-slate-600 mb-1">开发者自测</h2>
-                    <p class="text-xs text-slate-400 mb-3">批次①验收：数据层读写 / 导入导出 / 持久化</p>
-                    <div class="grid grid-cols-3 gap-2 text-sm">
-                        <button id="btn-seed" class="bg-slate-100 text-slate-700 rounded-xl py-2 active:opacity-80">写入示例账目</button>
-                        <button id="btn-check" class="bg-slate-100 text-slate-700 rounded-xl py-2 active:opacity-80">数据体检</button>
-                        <button id="btn-reset" class="bg-red-50 text-red-600 rounded-xl py-2 active:opacity-80">清空全部</button>
+                <!-- 身份切换锁（v1.0.1，R9） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">🔒 身份切换锁 <span id="idlock-status" class="text-[10px] font-normal ml-1 text-slate-400">未开启</span></h2>
+                    <p class="text-xs text-slate-400 mb-3">开启后，切换到对方的视角需要输入切换口令——保护你的私密账和小金库不被本机上的其他人随手查看</p>
+                    <div id="idlock-off" class="flex gap-2">
+                        <button id="idlock-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启切换锁</button>
                     </div>
-                    <p id="check-result" class="hidden mt-3 text-xs bg-slate-50 rounded-xl p-3 text-slate-600 font-mono break-all"></p>
+                    <div id="idlock-on" class="hidden grid grid-cols-2 gap-2">
+                        <button id="idlock-change" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">修改口令</button>
+                        <button id="idlock-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">关闭切换锁</button>
+                    </div>
+                </div>
+
+                <!-- 退出当前家庭（v1.0.1，R8） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">退出当前家庭</h2>
+                    <p class="text-xs text-slate-400 mb-3">想重新建一个账本？先导出备份，再清空本机数据回到初始向导</p>
+                    <button id="btn-reset" class="w-full bg-red-50 text-red-600 text-sm rounded-xl py-2.5 active:opacity-80">清空数据，退出当前家庭…</button>
                 </div>
 
                 <!-- 关于 -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
                     <ul class="text-xs text-slate-500 space-y-1.5">
-                        <li>版本：v1.0.0-batch4（记账+三层隐私+分摊结算+仪表盘）</li>
+                        <li>版本：v1.0.1（记账+三层隐私+身份锁+分摊结算+仪表盘+加密）</li>
                         <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
                         <li>开源致谢：分摊算法思路参考 <span class="text-indigo-500">spliit</span>（MIT License）</li>
                         <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
@@ -375,9 +384,10 @@
                 <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
                     <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
                     <div id="tx-sheet-body" class="space-y-2"></div>
-                    <div class="grid grid-cols-2 gap-3 mt-5">
-                        <button id="tx-edit" class="bg-slate-100 text-slate-700 text-sm font-medium rounded-xl py-3 active:opacity-80">编辑</button>
-                        <button id="tx-delete" class="bg-red-50 text-red-600 text-sm font-medium rounded-xl py-3 active:opacity-80">删除</button>
+                    <p class="text-[11px] text-slate-300 text-center mt-3">点下方按钮可修改金额、分类、隐私层级或删除这笔账</p>
+                    <div class="grid grid-cols-2 gap-3 mt-2">
+                        <button id="tx-edit" class="bg-indigo-50 text-indigo-600 text-sm font-medium rounded-xl py-3 active:opacity-80">✏️ 编辑这笔</button>
+                        <button id="tx-delete" class="bg-red-50 text-red-600 text-sm font-medium rounded-xl py-3 active:opacity-80">🗑 删除</button>
                     </div>
                 </div>
             </div>
@@ -417,6 +427,29 @@
                         <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span class="text-slate-500">单人公开记账</span><span class="text-emerald-500">免费版</span></div>
                     </div>
                     <button id="upgrade-unlock" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">模拟解锁全部功能</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 身份锁 PIN 弹层（v1.0.1） -->
+        <div id="pin-sheet" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/40" id="pin-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1" id="pin-title">验证身份锁</h3>
+                    <p class="text-xs text-slate-400 mb-4" id="pin-hint"></p>
+                    <input id="pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="6 位数字口令"
+                           class="w-full text-center tracking-[0.5em] text-lg bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 focus:outline-none focus:border-indigo-400">
+                    <div id="pin2-row" class="hidden mb-3">
+                        <input id="pin-input2" type="password" inputmode="numeric" maxlength="6" placeholder="再输一次确认"
+                               class="w-full text-center tracking-[0.5em] text-lg bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-400">
+                    </div>
+                    <p id="pin-err" class="text-xs text-rose-500 mb-3 h-4"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="pin-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
+                        <button id="pin-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">确认</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -509,13 +542,13 @@
     </div>
 </div>
 
-<script src="js/db.js"></script>
-<script src="js/crypto.js"></script>
-<script src="js/privacy.js"></script>
-<script src="js/split.js"></script>
-<script src="js/dashboard.js"></script>
-<script src="js/ledger.js"></script>
-<script src="js/settings.js"></script>
-<script src="js/app.js"></script>
+<script src="js/db.js?v=1.0.1"></script>
+<script src="js/crypto.js?v=1.0.1"></script>
+<script src="js/privacy.js?v=1.0.1"></script>
+<script src="js/ledger.js?v=1.0.1"></script>
+<script src="js/split.js?v=1.0.1"></script>
+<script src="js/dashboard.js?v=1.0.1"></script>
+<script src="js/settings.js?v=1.0.1"></script>
+<script src="js/app.js?v=1.0.1"></script>
 </body>
 </html>

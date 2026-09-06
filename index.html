@@ -30,22 +30,95 @@
         <!-- 页面容器 -->
         <main class="pb-28">
 
-            <!-- 明细页（批次②实现列表） -->
-            <section id="page-ledger" class="p-4">
-                <div class="flex flex-col items-center justify-center text-center py-20">
-                    <span class="text-5xl mb-4">📒</span>
-                    <p class="text-slate-700 font-medium">还没有账目</p>
-                    <p class="text-sm text-slate-400 mt-1">点击底部 ＋ 记下第一笔<br>批次②将上线记账与三层隐私过滤</p>
+            <!-- 明细页（批次②） -->
+            <section id="page-ledger" class="p-4 space-y-4">
+
+                <!-- 我的小金库（仅本人可见，07-PRD §5.2） -->
+                <div id="vault-card" class="bg-gradient-to-br from-indigo-500 to-violet-500 rounded-2xl p-4 text-white shadow-md shadow-indigo-100">
+                    <button id="vault-toggle" class="w-full flex items-center justify-between text-left">
+                        <div>
+                            <p class="text-xs opacity-80">💰 我的小金库 · 仅本人可见</p>
+                            <p id="vault-balance" class="text-2xl font-bold mt-0.5">¥0.00</p>
+                        </div>
+                        <span id="vault-arrow" class="opacity-80 text-lg">▾</span>
+                    </button>
+                    <div id="vault-list" class="hidden mt-3 pt-3 border-t border-white/20 space-y-2 max-h-56 overflow-y-auto"></div>
                 </div>
+
+                <!-- 月份切换 + 当月汇总 -->
+                <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
+                    <button id="month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <div class="text-center">
+                        <p id="month-label" class="font-semibold text-slate-800">—</p>
+                        <p class="text-xs text-slate-400 mt-0.5">收 <span id="month-income" class="text-emerald-500 font-medium">+¥0.00</span>
+                            ·
+                            支 <span id="month-expense" class="text-rose-500 font-medium">-¥0.00</span></p>
+                    </div>
+                    <button id="month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                </div>
+
+                <!-- 账目列表 -->
+                <div id="tx-list" class="space-y-2"></div>
             </section>
 
-            <!-- 记一笔页（批次②实现表单） -->
-            <section id="page-add" class="hidden p-4">
-                <div class="flex flex-col items-center justify-center text-center py-20">
-                    <span class="text-5xl mb-4">✍️</span>
-                    <p class="text-slate-700 font-medium">记一笔 · 开发中</p>
-                    <p class="text-sm text-slate-400 mt-1">批次②上线：金额 / 分类 / 归属人<br>公开 · 单笔私密 · 小金库 三层标记</p>
+            <!-- 记一笔页（批次②表单，07-PRD §4.1） -->
+            <section id="page-add" class="hidden p-4 space-y-4">
+                <h2 id="f-title" class="font-semibold text-slate-800">记一笔</h2>
+
+                <!-- 收支类型 -->
+                <div id="f-type" class="grid grid-cols-2 gap-2">
+                    <button data-v="expense" class="f-type-btn rounded-xl py-3 font-medium border transition">支出 💸</button>
+                    <button data-v="income" class="f-type-btn rounded-xl py-3 font-medium border transition">收入 💰</button>
                 </div>
+
+                <!-- 金额 -->
+                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3">
+                    <span class="text-3xl font-bold text-slate-400">¥</span>
+                    <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00"
+                           class="flex-1 text-3xl font-bold text-slate-800 outline-none bg-transparent">
+                </div>
+
+                <!-- 分类 -->
+                <div>
+                    <p class="text-xs text-slate-400 mb-2">分类</p>
+                    <div id="f-cats" class="grid grid-cols-4 gap-2"></div>
+                </div>
+
+                <!-- 归属人（实付人） -->
+                <div>
+                    <p class="text-xs text-slate-400 mb-2">这笔钱谁付的</p>
+                    <div id="f-owner" class="grid grid-cols-2 gap-2"></div>
+                </div>
+
+                <!-- 隐私层级（三层，07-PRD §5.1） -->
+                <div>
+                    <p class="text-xs text-slate-400 mb-2">隐私层级</p>
+                    <div id="f-privacy" class="grid grid-cols-3 gap-2">
+                        <button data-v="public" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🌐 公开</button>
+                        <button data-v="private" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🔒 单笔私密</button>
+                        <button data-v="vault" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">💰 小金库</button>
+                    </div>
+                    <p id="f-privacy-hint" class="text-[11px] text-slate-400 mt-1.5"></p>
+                </div>
+
+                <!-- 共同分摊开关 -->
+                <div id="f-shared-row" class="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3">
+                    <div>
+                        <p class="text-sm text-slate-700">参与共同分摊</p>
+                        <p class="text-[11px] text-slate-400">开启后计入月底自动结算</p>
+                    </div>
+                    <button id="f-shared" class="text-sm font-medium rounded-full px-3 py-1.5 transition">开启</button>
+                </div>
+
+                <!-- 日期 + 备注 -->
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="f-date" type="date"
+                           class="bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-700 focus:outline-none focus:border-indigo-400">
+                    <input id="f-note" type="text" maxlength="50" placeholder="备注（50字内）"
+                           class="bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-700 focus:outline-none focus:border-indigo-400">
+                </div>
+
+                <button id="f-save" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">保存</button>
             </section>
 
             <!-- 结算页（批次③实现引擎） -->
@@ -105,7 +178,7 @@
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-2">关于</h2>
                     <ul class="text-xs text-slate-500 space-y-1.5">
-                        <li>版本：v1.0.0-batch1（批次① 骨架 + 数据层）</li>
+                        <li>版本：v1.0.0-batch2（批次② 记账 + 三层隐私过滤）</li>
                         <li>隐私承诺：全部数据仅保存在本设备浏览器，不上传任何服务器</li>
                         <li>本工具不提供投资建议；理财相关功能上线后将附免责声明</li>
                     </ul>
@@ -144,6 +217,21 @@
                     <h3 class="font-semibold text-slate-800 mb-1">切换身份</h3>
                     <p class="text-xs text-slate-400 mb-4">切换后所有页面按该成员视角展示数据（对方私密与小金库将隐藏）</p>
                     <div id="viewer-options" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 账目详情弹层（批次②） -->
+        <div id="tx-sheet" class="hidden fixed inset-0 z-40">
+            <div class="absolute inset-0 bg-black/40" id="tx-sheet-mask"></div>
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <div id="tx-sheet-body" class="space-y-2"></div>
+                    <div class="grid grid-cols-2 gap-3 mt-5">
+                        <button id="tx-edit" class="bg-slate-100 text-slate-700 text-sm font-medium rounded-xl py-3 active:opacity-80">编辑</button>
+                        <button id="tx-delete" class="bg-red-50 text-red-600 text-sm font-medium rounded-xl py-3 active:opacity-80">删除</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -216,6 +304,8 @@
 </div>
 
 <script src="js/db.js"></script>
+<script src="js/privacy.js"></script>
+<script src="js/ledger.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/app.js"></script>
 </body>

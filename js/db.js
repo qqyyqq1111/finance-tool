@@ -17,16 +17,28 @@
     categories:   'fc_categories',
     accounts:     'fc_accounts',
     transactions: 'fc_transactions',
-    settlements:  'fc_settlements'
+    settlements:  'fc_settlements',
+    cryptoMeta:   'fc_crypto_meta'
   };
 
   var PRIVACY_LEVELS = ['public', 'private', 'vault'];
   var TX_TYPES = ['expense', 'income'];
   var MAX_AMOUNT_CENTS = 9999999900; // 99,999,999.99 元
 
+  /* ---------------- 加密会话（批次⑤，07-PRD §2.1） ----------------
+   * 交易/结算在加密开启后以密文存 LocalStorage；明文只存在于解锁后的内存会话。
+   * 设置/分类/账户不加密（PRD：设置元数据不加密）。 */
+  var CRYPTO_KEYS = ['transactions', 'settlements'];
+  var sessionCache = null; // { transactions:[], settlements:[] }，仅解锁后存在
+
+  function encryptionOn() {
+    var s = rawRead('settings');
+    return !!(s && s.encryptionEnabled === true);
+  }
+
   /* ---------------- 基础读写 ---------------- */
 
-  function read(key) {
+  function rawRead(key) {
     try {
       var raw = localStorage.getItem(KEYS[key] || key);
       return raw === null ? null : JSON.parse(raw);
@@ -36,13 +48,34 @@
     }
   }
 
-  function write(key, value) {
+  function rawWrite(key, value) {
     localStorage.setItem(KEYS[key] || key, JSON.stringify(value));
   }
 
-  function removeKey(key) {
+  function rawRemove(key) {
     localStorage.removeItem(KEYS[key] || key);
   }
+
+  function read(key) {
+    // 加密键：开启加密后只从内存会话读（未解锁返回空，密文绝不反序列化为业务数据）
+    if (CRYPTO_KEYS.indexOf(key) >= 0 && encryptionOn()) {
+      if (!sessionCache) return key === 'transactions' ? [] : [];
+      return sessionCache[key] === undefined ? null : sessionCache[key];
+    }
+    return rawRead(key);
+  }
+
+  function write(key, value) {
+    if (CRYPTO_KEYS.indexOf(key) >= 0 && encryptionOn()) {
+      if (!sessionCache) { console.warn('[db] 加密未解锁，写入被忽略:', key); return; }
+      sessionCache[key] = value;
+      if (global.fcCrypto && global.fcCrypto.persistSoon) global.fcCrypto.persistSoon();
+      return;
+    }
+    rawWrite(key, value);
+  }
+
+  function removeKey(key) { rawRemove(key); }
 
   function uid(prefix) {
     return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -468,10 +501,12 @@
   /* ---------------- 备份 / 导入 / 重置（07-PRD §8） ---------------- */
 
   function exportAll() {
+    var enc = encryptionOn();
     return JSON.stringify({
       app: 'finance-couple-assistant',
       schemaVersion: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
+      encryptionNote: enc ? '导出时处于加密状态：本文件内账目为明文JSON，请妥善保管；导入后加密为关闭状态，可重新开启' : undefined,
       data: {
         settings: read('settings'),
         categories: read('categories'),
@@ -502,12 +537,19 @@
       if (err) errors.push('第' + (i + 1) + '笔账目非法：' + err);
     });
     if (errors.length) return { ok: false, errors: errors };
-    write('settings', obj.data.settings);
-    write('categories', obj.data.categories);
-    write('accounts', obj.data.accounts);
-    write('transactions', obj.data.transactions);
-    write('settlements', obj.data.settlements);
-    return { ok: true };
+    // 加密态导入：备份统一为明文落地，导入后加密重置为关闭（需重新开启）
+    if (encryptionOn() && !sessionCache) {
+      return { ok: false, errors: ['数据已加密，请先解锁后再导入'] };
+    }
+    obj.data.settings.encryptionEnabled = false;
+    sessionCache = null;
+    rawRemove('cryptoMeta');
+    rawWrite('settings', obj.data.settings);
+    rawWrite('categories', obj.data.categories);
+    rawWrite('accounts', obj.data.accounts);
+    rawWrite('transactions', obj.data.transactions);
+    rawWrite('settlements', obj.data.settlements);
+    return { ok: true, reload: true };
   }
 
   /** 清空本应用全部数据（设置页需输入 DELETE 确认后调用） */
@@ -518,6 +560,7 @@
       if (k && k.indexOf('fc_') === 0) keys.push(k);
     }
     keys.forEach(function (k) { localStorage.removeItem(k); });
+    sessionCache = null;
     return { ok: true, removed: keys.length };
   }
 
@@ -561,6 +604,16 @@
     exportAll: exportAll,
     importAll: importAll,
     resetAll: resetAll,
-    healthCheck: healthCheck
+    healthCheck: healthCheck,
+    /* 加密桥接原语（供 crypto.js 使用，业务代码勿直接调用） */
+    _cryptoBridge: {
+      isOn: encryptionOn,
+      setSession: function (cache) { sessionCache = cache; },
+      clearSession: function () { sessionCache = null; },
+      getSession: function () { return sessionCache; },
+      rawRead: rawRead,
+      rawWrite: rawWrite,
+      rawRemove: rawRemove
+    }
   };
 })(window);

@@ -87,6 +87,7 @@
   /* ---------------- 状态 ---------------- */
 
   C.available = function () { return !!getSubtle(); };
+  C.randomSalt = function () { return u8ToB64(randomBytes(16)); }; // v1.0.1 身份锁
 
   C.isEnabled = function () {
     var s = fcDb._cryptoBridge.rawRead('settings');
@@ -150,6 +151,29 @@
     keyMaterial = null;
     fcDb._cryptoBridge.clearSession();
     return { ok: true };
+  };
+
+  /* ---------------- PIN 校验哈希（v1.0.1 身份切换锁用） ----------------
+   * PBKDF2 派生 256bit → SHA-256 摘要 hex；只存摘要不存口令/密钥 */
+
+  C.deriveHash = function (pin, saltB64, iterations) {
+    var subtle = getSubtle();
+    var enc = new TextEncoder();
+    return subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits'])
+      .then(function (base) {
+        return subtle.deriveBits(
+          { name: 'PBKDF2', salt: b64ToU8(saltB64), iterations: iterations || ITERATIONS, hash: 'SHA-256' },
+          base, 256
+        );
+      })
+      .then(function (bits) {
+        return subtle.digest('SHA-256', bits);
+      })
+      .then(function (d) {
+        var u = new Uint8Array(d), s = '';
+        for (var i = 0; i < u.length; i++) s += ('0' + u[i].toString(16)).slice(-2);
+        return s;
+      });
   };
 
   /* ---------------- 关闭加密（口令验证后明文落盘） ---------------- */

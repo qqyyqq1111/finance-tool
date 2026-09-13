@@ -1,0 +1,25 @@
+# 保活：免费版 Supabase 连续 7 天无数据库活动会自动暂停
+# 每周一/三/五（UTC 03:00 ≈ 北京时间 11:00）请求一次 REST 接口产生活动
+# anon key 为 publishable 公开密钥（已硬编码在 js/cloud.js 中），仅能配合 RLS 使用，无安全风险
+name: Keep Supabase Awake
+
+on:
+  schedule:
+    - cron: '0 3 * * 1,3,5'
+  workflow_dispatch: # 允许在 Actions 页面手动触发
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST endpoint
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://vvbasvrbxscprmnvbvwm.supabase.co/rest/v1/" \
+            -H "apikey: sb_publishable_UdkIEsYLmX3iLoKIqO29vg_D8qWNrX7")
+          echo "Supabase responded with HTTP $HTTP_CODE"
+          # 200 = OpenAPI 规格正常返回，说明项目活跃可用
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Supabase returned $HTTP_CODE — project may be paused, resume it in the dashboard"
+            exit 1
+          fi

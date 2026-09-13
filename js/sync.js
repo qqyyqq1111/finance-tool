@@ -34,6 +34,11 @@
       if (remote.deleted) return { action: 'skip', record: null }; // 远端已删，本地也无，无需操作
       return { action: 'write', record: remote };
     }
+    // 本地是对方私密占位行、远端是可解密真记录（身份/密钥恢复场景）：真记录无条件覆盖 stub
+    if (local._placeholder && !remote._placeholder) {
+      if (remote.deleted) return { action: 'delete', record: null };
+      return { action: 'write', record: remote };
+    }
     // 都有 → 比 updatedAt
     var localT = local.updatedAt || 0;
     var remoteT = remote.updatedAt || 0;
@@ -142,6 +147,18 @@
         route: S.classifyForSync(settings, 'settings')
       });
     }
+    // 墓碑队列（v1.1.2）：本地已删除、待推 deleted=true
+    var tombs = db._cryptoBridge.rawRead('tombstones') || [];
+    tombs.forEach(function (tb) {
+      var fakeRec = { id: tb.entityId, privacy: tb.privacy, shared: tb.shared, vaultId: tb.vaultId, deleted: true };
+      result.push({
+        entityType: tb.entityType,
+        entity: 'tombstone',
+        tombstone: true,
+        rec: tb,
+        route: S.classifyForSync(fakeRec, tb.entityType)
+      });
+    });
     return result;
   };
 
@@ -200,47 +217,50 @@
       var ops = dirty.map(function (item) {
         var rec = item.rec;
         var route = item.route;
+        var recId = item.tombstone ? rec.entityId : rec.id;
+        var isDeleted = !!(item.tombstone || rec.deleted);
         var keyB64 = route.encKey === 'family' ? keys.familyKey : keys.personalKey;
-        var payload = JSON.stringify(rec);
+        // 墓碑内容 pull 端不会解密（墓碑优先），加密空壳满足 not-null 约束即可
+        var payload = item.tombstone ? '{}' : JSON.stringify(rec);
 
         return getE2E().encryptText(payload, keyB64).then(function (encPayload) {
           if (route.table === 'family_docs') {
             // 私密账：行上明文携带非敏感元信息（日期+身份位），供对方设备生成占位行；
             // 金额/分类/备注仍只在 personalKey 密文里，对方解不开（09-PRD §4）
             var meta = null;
-            if (item.entityType === 'tx' && route.encKey === 'personal') {
+            if (!item.tombstone && item.entityType === 'tx' && route.encKey === 'personal') {
               meta = { d: rec.date || null, m: rec.ownerId || null };
             }
             return client.from('family_docs').upsert({
               family_id: keys.familyId,
               entity_type: item.entityType,
-              entity_id: rec.id,
+              entity_id: recId,
               enc_payload: encPayload,
               enc_key: route.encKey,
               owner_uid: uid,
               meta: meta,
               updated_at: rec.updatedAt || Date.now(),
               device_id: deviceId,
-              deleted: rec.deleted || false
+              deleted: isDeleted
             }, { onConflict: 'family_id,entity_type,entity_id' }).then(function (r) {
-              return { ok: !r.error, error: r.error ? r.error.message : null, id: rec.id };
+              return { ok: !r.error, error: r.error ? r.error.message : null, id: recId, tombstone: item.tombstone || false, entityType: item.entityType };
             });
           } else {
             // personal_docs
             return client.from('personal_docs').upsert({
               user_id: uid,
               entity_type: item.entityType,
-              entity_id: rec.id,
+              entity_id: recId,
               enc_payload: encPayload,
               updated_at: rec.updatedAt || Date.now(),
               device_id: deviceId,
-              deleted: rec.deleted || false
+              deleted: isDeleted
             }, { onConflict: 'user_id,entity_type,entity_id' }).then(function (r) {
-              return { ok: !r.error, error: r.error ? r.error.message : null, id: rec.id };
+              return { ok: !r.error, error: r.error ? r.error.message : null, id: recId, tombstone: item.tombstone || false, entityType: item.entityType };
             });
           }
         }).catch(function (e) {
-          return { ok: false, error: e.message || '加密失败', id: rec.id };
+          return { ok: false, error: e.message || '加密失败', id: recId, tombstone: item.tombstone || false, entityType: item.entityType };
         });
       });
 
@@ -248,7 +268,12 @@
         // 成功的标记 clean，失败的保留 dirty
         var succeeded = results.filter(function (r) { return r.ok; });
         var failed = results.filter(function (r) { return !r.ok; });
-        markSyncStatus(db, succeeded.map(function (r) { return r.id; }), 'clean');
+        markSyncStatus(db, succeeded.filter(function (r) { return !r.tombstone; })
+          .map(function (r) { return r.id; }), 'clean');
+        // 上云成功的墓碑移出队列（失败的保留，下次重试）
+        var purged = succeeded.filter(function (r) { return r.tombstone; })
+          .map(function (r) { return { entityType: r.entityType, entityId: r.id }; });
+        if (purged.length) purgeTombstones(db, purged);
         var errors = failed.map(function (r) { return r.error + ' (id:' + r.id + ')'; });
         return { ok: failed.length === 0, pushed: succeeded.length, errors: errors };
       });
@@ -443,6 +468,15 @@
     var list = db._cryptoBridge.rawRead(key) || [];
     var filtered = list.filter(function (r) { return r.id !== entityId; });
     db._cryptoBridge.rawWrite(key, filtered);
+  }
+
+  /** 已上云的墓碑移出本地队列 @param {Array<{entityType:String, entityId:String}>} items */
+  function purgeTombstones(db, items) {
+    var list = db._cryptoBridge.rawRead('tombstones') || [];
+    var remain = list.filter(function (tb) {
+      return !items.some(function (it) { return it.entityType === tb.entityType && it.entityId === tb.entityId; });
+    });
+    db._cryptoBridge.rawWrite('tombstones', remain);
   }
 
   function markSyncStatus(db, ids, status) {

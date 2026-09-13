@@ -572,8 +572,9 @@
       fcE2E.fetchMembership().then(function (m) {
         membership = m;
         // 登录态确立（含刷新后会话恢复）：默认切到本人视角（v1.1.2 体验修复）
-        if (m && m.memberId && fcDb.getCurrentViewer() !== m.memberId) {
-          fcDb.patchSettings({ currentViewer: m.memberId });
+        // 注意 currentViewer 是关键字段，patchSettings 白名单会忽略，必须走 switchViewer
+        if (m && m.memberId && fcDb.getCurrentViewer() !== m.memberId && fcDb.findMember(m.memberId)) {
+          fcDb.switchViewer(m.memberId);
           if (global.renderAll) global.renderAll();
         }
         S.renderCloud();
@@ -781,9 +782,8 @@
       btn.disabled = false; btn.classList.remove('opacity-60');
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
       // 创建者固定 m1：家庭名写回本机 + 默认本人视角（v1.1.2 体验修复）
-      var patch = { currentViewer: 'm1' };
-      if (name) patch.familyName = name;
-      fcDb.patchSettings(patch);
+      if (name) fcDb.patchSettings({ familyName: name });
+      fcDb.switchViewer('m1');
       if (global.renderAll) global.renderAll();
       sheet('pair-create-sheet', false);
       toast('家庭创建成功，现在可以邀请伴侣了', 'success');
@@ -838,7 +838,7 @@
       sheet('pair-join-sheet', false);
       pendingJoinCode = null;
       // 加入者固定 m2：默认切到本人视角并重置记账表单（v1.1.2 体验修复，避免停在对方视角）
-      fcDb.patchSettings({ currentViewer: 'm2' });
+      fcDb.switchViewer('m2');
       if (global.renderAll) global.renderAll();
       if (window.ledger && ledger.newEntry) ledger.newEntry();
       toast('已加入家庭，配对成功 🎉', 'success');
@@ -855,7 +855,7 @@
       document.getElementById('restore-pw').value = '';
       // 换设备恢复后切到本人视角（r.memberId 为备份中的身份位）
       if (r.memberId) {
-        fcDb.patchSettings({ currentViewer: r.memberId });
+        fcDb.switchViewer(r.memberId);
         if (global.renderAll) global.renderAll();
       }
       toast('密钥恢复成功', 'success');

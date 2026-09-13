@@ -322,6 +322,44 @@ console.log('[23] 占位行 LWW 更新与墓碑');
   assert(m3.action === 'delete', '墓碑 → 删除占位行');
 })();
 
+console.log('[24] 墓碑队列扫描（v1.1.2：删除可同步）');
+(function () {
+  var mockDb = {
+    _cryptoBridge: {
+      rawRead: function (key) {
+        if (key === 'transactions') return [];
+        if (key === 'settlements') return [];
+        if (key === 'categories') return [];
+        if (key === 'settings') null;
+        if (key === 'tombstones') return [
+          { entityType: 'tx', entityId: 't_priv', updatedAt: 9000, deviceId: 'A', privacy: 'private', shared: false, vaultId: null },
+          { entityType: 'tx', entityId: 't_vault', updatedAt: 9001, deviceId: 'A', privacy: 'vault', shared: false, vaultId: 'a_vault' }
+        ];
+        return null;
+      }
+    }
+  };
+  var dirty = S.scanDirty(mockDb);
+  assert(dirty.length === 2, '扫描出 2 条待推墓碑');
+  var priv = dirty[0], vault = dirty[1];
+  assert(priv.tombstone === true && priv.rec.entityId === 't_priv', '墓碑标记位与 id 正确');
+  assert(priv.route.table === 'family_docs' && priv.route.encKey === 'personal', '私密账墓碑 → family_docs/personal（对方靠墓碑行删除占位）');
+  assert(vault.route.table === 'personal_docs', '小金库墓碑 → personal_docs（仅本人空间）');
+})();
+
+console.log('[25] 真记录无条件覆盖本地占位 stub');
+(function () {
+  var row = { entity_type: 'tx', entity_id: 't_x', meta: { d: '2026-09-13', m: 'm2' }, updated_at: 5000, device_id: 'A' };
+  var stub = S.buildPrivateStub(row, 'm1');
+  // 同一时间戳、同一 deviceId（LWW 原本会 skip），但远端是可解密真记录
+  var real = { id: 't_x', date: '2026-09-13', amount: 80000, privacy: 'private', ownerId: 'm2', updatedAt: 5000, deviceId: 'A', _sync: 'clean' };
+  var m = S.mergeRecord(stub, real);
+  assert(m.action === 'write' && m.record.amount === 80000 && m.record._placeholder === undefined, '同时间戳真记录仍覆盖 stub（密钥恢复场景）');
+  // 远端若是墓碑 → 删除
+  var mDel = S.mergeRecord(stub, { id: 't_x', deleted: true, updatedAt: 5000, deviceId: 'A' });
+  assert(mDel.action === 'delete', '同时间戳墓碑仍删除 stub');
+})();
+
 /* ---- summary ---- */
 console.log('\n=================================');
 console.log('sync.test.js: ' + passed + ' passed, ' + failed + ' failed (total ' + (passed + failed) + ')');

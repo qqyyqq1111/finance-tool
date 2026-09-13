@@ -252,6 +252,29 @@
     return s ? s.currentViewer : null;
   }
 
+  /* ---------------- v1.1.2 墓碑队列（本地已物理删除、待推云端的删除标记） ----------------
+   * 记录从业务集合移除前排这里；sync push 成功（deleted=true 上云）后 purge。
+   * 无网络时队列累积（体积很小），下次联网清空。pull 端见墓碑直接删本地。 */
+  function queueTombstone(entityType, rec) {
+    var list = rawRead('tombstones') || [];
+    // 同 id 旧墓碑去重（编辑后再删只保留最新删除时间）
+    list = list.filter(function (x) { return !(x.entityType === entityType && x.entityId === rec.id); });
+    list.push({
+      entityType: entityType,
+      entityId: rec.id,
+      updatedAt: Date.now(),
+      deviceId: getDeviceId(),
+      // 路由信息（classifyForSync 用），无任何业务内容
+      privacy: rec.privacy || 'public',
+      shared: !!rec.shared,
+      vaultId: rec.vaultId || null
+    });
+    rawWrite('tombstones', list);
+    if (global.fcSync && typeof global.fcSync.scheduleSync === 'function') {
+      global.fcSync.scheduleSync();
+    }
+  }
+
   /* ---------------- 交易（07-PRD §2.2 字段约束） ---------------- */
 
   /**
@@ -470,6 +493,8 @@
       var lock = settlementLockError(t.date);
       if (lock) return { ok: false, errors: [lock] };
       write('transactions', list.filter(function (x) { return x.id !== id; }));
+      // v1.1.2：物理删除前排入墓碑队列，同步引擎 push 后清除（否则云端行永删不掉，对方端残留）
+      queueTombstone('tx', t);
       return { ok: true };
     }
   };

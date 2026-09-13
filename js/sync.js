@@ -80,6 +80,34 @@
   };
 
   /**
+   * 构造对方私密账的本地占位记录（纯函数）
+   * 行上明文 meta={d:日期,m:身份位}；金额/分类/备注不包含（在对方 personalKey 密文里）
+   * @param {Object} row - family_docs 行（含 meta/updated_at/device_id/entity_id）
+   * @param {String} selfMid - 本机成员位 'm1'|'m2'（用于推断对方身份位兜底）
+   */
+  S.buildPrivateStub = function (row, selfMid) {
+    var meta = row.meta || {};
+    var otherMid = selfMid === 'm1' ? 'm2' : 'm1';
+    var ts = Number(row.updated_at) || Date.now();
+    var fallbackDate = new Date(ts).toISOString().slice(0, 10);
+    return {
+      id: row.entity_id,
+      date: meta.d || fallbackDate,
+      type: 'expense',
+      amount: 0,
+      categoryId: null,
+      ownerId: meta.m || otherMid,
+      privacy: 'private',
+      shared: false,
+      note: '',
+      _placeholder: true,
+      _sync: 'clean',
+      updatedAt: ts,
+      deviceId: row.device_id || 'remote'
+    };
+  };
+
+  /**
    * 扫描本地 dirty 记录，返回待推送列表
    * @param {Object} db - fcDb 实例（需 _cryptoBridge.rawRead）
    * @returns {Array} [{entityType, entity, rec, route}]
@@ -177,6 +205,12 @@
 
         return getE2E().encryptText(payload, keyB64).then(function (encPayload) {
           if (route.table === 'family_docs') {
+            // 私密账：行上明文携带非敏感元信息（日期+身份位），供对方设备生成占位行；
+            // 金额/分类/备注仍只在 personalKey 密文里，对方解不开（09-PRD §4）
+            var meta = null;
+            if (item.entityType === 'tx' && route.encKey === 'personal') {
+              meta = { d: rec.date || null, m: rec.ownerId || null };
+            }
             return client.from('family_docs').upsert({
               family_id: keys.familyId,
               entity_type: item.entityType,
@@ -184,6 +218,7 @@
               enc_payload: encPayload,
               enc_key: route.encKey,
               owner_uid: uid,
+              meta: meta,
               updated_at: rec.updatedAt || Date.now(),
               device_id: deviceId,
               deleted: rec.deleted || false
@@ -242,7 +277,7 @@
 
       // 并行拉取 family_docs + personal_docs
       var famQuery = client.from('family_docs')
-        .select('entity_type,entity_id,enc_payload,enc_key,owner_uid,updated_at,device_id,deleted')
+        .select('entity_type,entity_id,enc_payload,enc_key,owner_uid,meta,updated_at,device_id,deleted')
         .eq('family_id', keys.familyId)
         .gt('updated_at', lastPull)
         .order('updated_at', { ascending: true });
@@ -265,6 +300,12 @@
         // 处理 family_docs
         var famOps = famRows.map(function (row) {
           if (row.updated_at > maxTs) maxTs = row.updated_at;
+          // 墓碑优先：远端已删除直接删本地（含对方私密占位行），无需也无法解密
+          if (row.deleted) {
+            deleteLocalRecord(db, row.entity_type, row.entity_id);
+            merged++;
+            return Promise.resolve({ merged: true, placeholder: false });
+          }
           var keyB64;
           if (row.enc_key === 'family') {
             keyB64 = keys.familyKey;
@@ -273,9 +314,10 @@
             if (row.owner_uid === uid) {
               keyB64 = keys.personalKey; // 自己的私密账
             } else {
-              // 对方的私密账 → 不解密，计为占位
-              placeholderCount++;
-              return Promise.resolve({ merged: false, placeholder: true });
+              // 对方的私密账：解不开密文 → 用明文 meta（日期+身份位）落占位行
+              var wrote = writePrivateStub(db, row, keys);
+              if (wrote) { merged++; placeholderCount++; }
+              return Promise.resolve({ merged: wrote, placeholder: wrote });
             }
           }
           return getE2E().decryptText(row.enc_payload, keyB64).then(function (json) {
@@ -292,9 +334,10 @@
             }
             return { merged: true, placeholder: false };
           }).catch(function (e) {
-            // 解密失败=对方私密账，计为占位
-            placeholderCount++;
-            return { merged: false, placeholder: true };
+            // 解密失败（旧数据/异常）：尽力落占位行，保证"对方有私密记录"语义不丢
+            var wrote2 = writePrivateStub(db, row, keys);
+            if (wrote2) { merged++; placeholderCount++; }
+            return { merged: wrote2, placeholder: wrote2 };
           });
         });
 
@@ -353,6 +396,20 @@
       if (list[i].id === entityId) return list[i];
     }
     return null;
+  }
+
+  /**
+   * 对方私密账：用行上明文 meta 落本地占位记录（无金额/分类/备注，不进统计不分摊）
+   * privacy.js 会按 ownerId!==viewer 把它归入 placeholders，ledger 渲染灰色占位行
+   * @returns {boolean} 是否实际写入（LWW skip 时 false）
+   */
+  function writePrivateStub(db, row, keys) {
+    if (row.entity_type !== 'tx') return false;
+    var stub = S.buildPrivateStub(row, keys.memberId);
+    var local = findLocalRecord(db, 'tx', row.entity_id);
+    var m = S.mergeRecord(local, stub);
+    if (m.action === 'write') { upsertLocalRecord(db, 'tx', m.record); return true; }
+    return false;
   }
 
   function upsertLocalRecord(db, entityType, record) {

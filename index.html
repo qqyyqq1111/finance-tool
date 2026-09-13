@@ -309,6 +309,7 @@
 
                         <!-- 3a：未建/未加入家庭 -->
                         <div id="cloud-nofamily">
+                            <p id="nofamily-stale-warn" class="hidden text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-2 leading-relaxed">本机还留有其他账号的配对数据。加入或创建家庭后会自动替换为本账号的数据。</p>
                             <p class="text-xs text-slate-400 mb-3 leading-relaxed">两个人各自登录后，一方创建家庭并发出邀请，另一方输入邀请码即完成配对。配对前所有数据仍只保存在本机。</p>
                             <div class="grid grid-cols-2 gap-2">
                                 <button id="btn-pair-create" class="bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">创建家庭</button>
@@ -713,16 +714,16 @@
 
 <!-- Supabase 云服务（v1.1；加载失败不阻塞单机模式，cloud.available() 自动降级） -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="js/db.js?v=1.1.1"></script>
-<script src="js/cloud.js?v=1.1.1"></script>
-<script src="js/e2e.js?v=1.1.1"></script>
-<script src="js/crypto.js?v=1.1.1"></script>
-<script src="js/privacy.js?v=1.1.1"></script>
-<script src="js/ledger.js?v=1.1.1"></script>
-<script src="js/split.js?v=1.1.1"></script>
-<script src="js/dashboard.js?v=1.1.1"></script>
-<script src="js/settings.js?v=1.1.1"></script>
-<script src="js/sync.js?v=1.1.1"></script>
-<script src="js/app.js?v=1.1.1"></script>
+<script src="js/db.js?v=1.1.2"></script>
+<script src="js/cloud.js?v=1.1.2"></script>
+<script src="js/e2e.js?v=1.1.2"></script>
+<script src="js/crypto.js?v=1.1.2"></script>
+<script src="js/privacy.js?v=1.1.2"></script>
+<script src="js/ledger.js?v=1.1.2"></script>
+<script src="js/split.js?v=1.1.2"></script>
+<script src="js/dashboard.js?v=1.1.2"></script>
+<script src="js/settings.js?v=1.1.2"></script>
+<script src="js/sync.js?v=1.1.2"></script>
+<script src="js/app.js?v=1.1.2"></script>
 </body>
 </html>

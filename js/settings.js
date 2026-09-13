@@ -598,9 +598,13 @@
     var nokeys = document.getElementById('cloud-nokeys');
     var hasCloudFamily = !!membership;
     var keysReady = !!(st && (!membership || st.familyId === membership.familyId));
-    nofamily.classList.toggle('hidden', hasCloudFamily || !!st);
-    hasfamily.classList.toggle('hidden', !(hasCloudFamily && keysReady) && !(st && !membership));
+    // 只要云端没有家庭就显示操作入口（创建/输入邀请码）；
+    // 即使本机残留其他账号的密钥状态（st），redeemInvite/createFamily 会覆盖它
+    nofamily.classList.toggle('hidden', hasCloudFamily);
+    hasfamily.classList.toggle('hidden', !(hasCloudFamily && keysReady));
     nokeys.classList.toggle('hidden', !(hasCloudFamily && !keysReady));
+    var staleWarn = document.getElementById('nofamily-stale-warn');
+    if (staleWarn) staleWarn.classList.toggle('hidden', !(st && !hasCloudFamily));
     if (hasCloudFamily && keysReady) {
       badge.textContent = membership.paired ? '已配对' : '待加入';
       badge.className = 'text-[10px] font-normal ml-1 ' + (membership.paired ? 'text-emerald-500' : 'text-amber-500');
@@ -620,7 +624,8 @@
         document.getElementById('pair-sync-hint').classList.add('hidden');
       }
     } else if (st && !membership) {
-      badge.textContent = '配对中';
+      // 本机有其他账号的残留配对数据，但当前云账号未加入任何家庭
+      badge.textContent = '未配对';
       badge.className = 'text-[10px] font-normal ml-1 text-amber-500';
     } else if (hasCloudFamily && !keysReady) {
       badge.textContent = '待恢复';

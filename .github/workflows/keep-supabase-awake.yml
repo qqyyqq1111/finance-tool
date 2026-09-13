@@ -1,6 +1,9 @@
 # 保活：免费版 Supabase 连续 7 天无数据库活动会自动暂停
-# 每周一/三/五（UTC 03:00 ≈ 北京时间 11:00）请求一次 REST 接口产生活动
-# anon key 为 publishable 公开密钥（已硬编码在 js/cloud.js 中），仅能配合 RLS 使用，无安全风险
+# 每周一/三/五（UTC 03:00 ≈ 北京时间 11:00）登录专用账号发一次真实数据库查询
+#
+# 安全说明：ping@keepalive.local 是不含任何家庭数据的专用空账号，
+# RLS 策略下它只能查到空结果；anon key 为 publishable 公开密钥（已在 js/cloud.js 中）。
+# 凭据泄露的最坏后果仅是帮本项目多产生保活流量，无数据暴露面。
 name: Keep Supabase Awake
 
 on:
@@ -11,15 +14,32 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://vvbasvrbxscprmnvbvwm.supabase.co
+      ANON_KEY: sb_publishable_UdkIEsYLmX3iLoKIqO29vg_D8qWNrX7
     steps:
-      - name: Ping Supabase REST endpoint
+      - name: Login keep-alive account
+        id: login
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://vvbasvrbxscprmnvbvwm.supabase.co/rest/v1/" \
-            -H "apikey: sb_publishable_UdkIEsYLmX3iLoKIqO29vg_D8qWNrX7")
-          echo "Supabase responded with HTTP $HTTP_CODE"
-          # 200 = OpenAPI 规格正常返回，说明项目活跃可用
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::warning::Supabase returned $HTTP_CODE — project may be paused, resume it in the dashboard"
+          TOKEN=$(curl -s -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"ping@keepalive.local","password":"Fk9#mQ2vXn7$Lp4wRj8s"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Login failed — check whether the Supabase project is paused"
             exit 1
           fi
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Query database to generate activity
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/families?select=id&limit=1" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer ${{ steps.login.outputs.token }}")
+          echo "Query responded with HTTP $HTTP_CODE, body: $(cat /tmp/resp.json)"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Expected HTTP 200 (empty RLS-filtered result), got $HTTP_CODE"
+            exit 1
+          fi
+          echo "Supabase is awake — authenticated query executed successfully"

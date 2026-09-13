@@ -368,8 +368,8 @@
                 <!-- 数据加密（批次⑤，Web Crypto；默认关闭） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">🔐 数据加密（进阶保护） <span id="crypto-status" class="text-[10px] font-normal ml-1"></span></h2>
-                    <p class="text-xs text-slate-400 mb-1">这是干嘛的？给整本账再加一把锁：开启后，账目数据在本机以密文保存——即使别人借用你的电脑浏览器、或拿到导出文件，没有口令也读不出任何账目内容。</p>
-                    <p class="text-xs text-slate-400 mb-3">不开也行：默认已有三层隐私 + 身份切换锁保护。开启后每次刷新需输 6 位口令解锁；忘记口令数据无法恢复，请谨慎设置。</p>
+                    <p class="text-xs text-slate-400 mb-1 leading-relaxed break-words">这是干嘛的？给整本账再加一把锁：开启后，账目数据在本机以密文保存——即使别人借用你的电脑浏览器、或拿到导出文件，没有口令也读不出任何账目内容。</p>
+                    <p class="text-xs text-slate-400 mb-3 leading-relaxed break-words">不开也行：默认已有三层隐私和身份切换锁保护。开启后每次刷新都要输入6位数字口令解锁；忘记口令数据无法恢复，请谨慎设置。</p>
                     <div id="crypto-off" class="flex gap-2">
                         <button id="btn-crypto-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启加密</button>
                     </div>
@@ -714,16 +714,16 @@
 
 <!-- Supabase 云服务（v1.1；加载失败不阻塞单机模式，cloud.available() 自动降级） -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="js/db.js?v=1.1.2"></script>
-<script src="js/cloud.js?v=1.1.2"></script>
-<script src="js/e2e.js?v=1.1.2"></script>
-<script src="js/crypto.js?v=1.1.2"></script>
-<script src="js/privacy.js?v=1.1.2"></script>
-<script src="js/ledger.js?v=1.1.2"></script>
-<script src="js/split.js?v=1.1.2"></script>
-<script src="js/dashboard.js?v=1.1.2"></script>
-<script src="js/settings.js?v=1.1.2"></script>
-<script src="js/sync.js?v=1.1.2"></script>
-<script src="js/app.js?v=1.1.2"></script>
+<script src="js/db.js?v=1.1.3"></script>
+<script src="js/cloud.js?v=1.1.3"></script>
+<script src="js/e2e.js?v=1.1.3"></script>
+<script src="js/crypto.js?v=1.1.3"></script>
+<script src="js/privacy.js?v=1.1.3"></script>
+<script src="js/ledger.js?v=1.1.3"></script>
+<script src="js/split.js?v=1.1.3"></script>
+<script src="js/dashboard.js?v=1.1.3"></script>
+<script src="js/settings.js?v=1.1.3"></script>
+<script src="js/sync.js?v=1.1.3"></script>
+<script src="js/app.js?v=1.1.3"></script>
 </body>
 </html>

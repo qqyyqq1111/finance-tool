@@ -177,7 +177,7 @@
 
   L.openDetail = function (id) {
     var t = fcDb.tx.list().filter(function (x) { return x.id === id; })[0];
-    if (!t) return;
+    if (!t || t._placeholder) return; // 对方私密占位行不可查看详情
     detailId = id;
     var cat = catMap()[t.categoryId] || { icon: '📦', name: '未知' };
     var owner = fcDb.findMember(t.ownerId);
@@ -287,7 +287,7 @@
   function renderOwnerSeg() {
     var s = fcDb.getSettings();
     if (!s) return;
-    if (!form.editingId) form.ownerId = s.currentViewer; // 新账默认当前查看人
+    if (!form.ownerId) form.ownerId = s.currentViewer; // 仅首次未选择时默认当前查看人（重渲染不得覆盖用户选择）
     var box = $('f-owner');
     box.innerHTML = '';
     s.members.forEach(function (m) {
@@ -401,6 +401,11 @@
     document.querySelectorAll('.f-privacy-btn').forEach(function (b) {
       b.addEventListener('click', function () {
         form.privacy = b.getAttribute('data-v');
+        // 小金库必须归属本人（db 层校验）：切到小金库时把付款人重置为当前查看人
+        if (form.privacy === 'vault') {
+          form.ownerId = fcDb.getCurrentViewer();
+          renderOwnerSeg();
+        }
         renderPrivacySeg();
       });
     });

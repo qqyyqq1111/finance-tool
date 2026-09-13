@@ -51,12 +51,15 @@ create table if not exists public.family_docs (
   enc_payload  text not null,                        -- AES-GCM 密文
   enc_key      text not null check (enc_key in ('family','personal')),
   owner_uid    uuid not null,                        -- 写入者（personal 密文归属用）
+  meta         jsonb,                                -- 私密账非敏感元信息 {d:日期, m:身份位}，供对方设备生成占位行（v1.1.2）
   updated_at   bigint not null,                      -- 毫秒时间戳（LWW 依据，客户端时钟经服务端校正）
   device_id    text not null,
   deleted      boolean not null default false,       -- 软删墓碑
   primary key (family_id, entity_type, entity_id)
 );
 create index if not exists family_docs_sync_idx on public.family_docs(family_id, updated_at);
+-- 已部署老库升级（幂等）：v1.1.2 私密占位行所需
+alter table public.family_docs add column if not exists meta jsonb;
 
 -- ---------- 5. 个人空间文档（小金库 + 个人密钥备份，RLS 仅本人） ----------
 create table if not exists public.personal_docs (

@@ -19,6 +19,7 @@ global.window = global;
 
 // 加载 sync.js（纯函数不依赖 DOM/supabase）
 require('../js/sync.js');
+require('../js/privacy.js'); // 占位行口径验证
 var S = global.fcSync;
 
 var passed = 0, failed = 0;
@@ -266,6 +267,97 @@ console.log('[20] LWW — 完全相同（updatedAt+deviceId 都相等）');
   var rec = { id: 'a', amount: 100, updatedAt: 1000, deviceId: 'dev1' };
   var m = S.mergeRecord(rec, rec);
   assert(m.action === 'skip', '完全相同 → skip（本地 deviceId >= 远端）');
+})();
+
+/* =================== [21] 私密占位行 buildPrivateStub（v1.1.2 P0-2） =================== */
+console.log('[21] 对方私密账占位行构造');
+(function () {
+  var row = {
+    entity_type: 'tx', entity_id: 't_private_1',
+    enc_key: 'personal', owner_uid: 'other-uid',
+    meta: { d: '2026-09-13', m: 'm1' },
+    updated_at: 1789300000000, device_id: 'dev_A'
+  };
+  var stub = S.buildPrivateStub(row, 'm2'); // 本机是 m2，对方 m1
+  assert(stub.id === 't_private_1', 'stub 保留 entity_id');
+  assert(stub.date === '2026-09-13', 'stub 日期取明文 meta.d');
+  assert(stub.ownerId === 'm1', 'stub 归属人取明文 meta.m');
+  assert(stub.privacy === 'private', 'stub 隐私层级为 private');
+  assert(stub._placeholder === true, 'stub 带 _placeholder 标记');
+  assert(stub._sync === 'clean', 'stub 不参与 push（clean）');
+  assert(stub.amount === 0 && stub.categoryId === null && stub.note === '', 'stub 无金额/分类/备注');
+  // privacy 过滤口径：对 m2 不可读 → 进 placeholders
+  var pv = fcPrivacy.view([stub], 'm2');
+  assert(pv.visible.length === 0 && pv.placeholders.length === 1, 'stub 对对方进入 placeholders');
+  // 不计入月度统计
+  var totals = fcPrivacy.monthTotals([stub], 'm2', '2026-09');
+  assert(totals.expense === 0 && totals.income === 0, 'stub 不进收支统计');
+})();
+
+console.log('[22] 占位行 meta 缺失兜底（旧数据）');
+(function () {
+  var row = {
+    entity_type: 'tx', entity_id: 't_old',
+    meta: null, updated_at: Date.UTC(2026, 8, 13, 12, 0, 0), device_id: 'dev_A'
+  };
+  var stub = S.buildPrivateStub(row, 'm1'); // 本机 m1 → 对方推断 m2
+  assert(stub.ownerId === 'm2', 'meta.m 缺失 → 推断为另一位成员');
+  assert(stub.date === '2026-09-13', 'meta.d 缺失 → 用 updated_at 推导日期');
+  assert(stub._placeholder === true, '兜底 stub 仍带占位标记');
+})();
+
+console.log('[23] 占位行 LWW 更新与墓碑');
+(function () {
+  var oldRow = { entity_type: 'tx', entity_id: 't_x', meta: { d: '2026-09-01', m: 'm2' }, updated_at: 1000, device_id: 'A' };
+  var oldStub = S.buildPrivateStub(oldRow, 'm1');
+  var newRow = { entity_type: 'tx', entity_id: 't_x', meta: { d: '2026-09-02', m: 'm2' }, updated_at: 2000, device_id: 'A' };
+  var newStub = S.buildPrivateStub(newRow, 'm1');
+  var m1 = S.mergeRecord(oldStub, newStub);
+  assert(m1.action === 'write' && m1.record.date === '2026-09-02', '远端占位更新（日期变）→ 写入');
+  var past = S.buildPrivateStub({ entity_type: 'tx', entity_id: 't_x', meta: { d: '2026-08-01' }, updated_at: 500, device_id: 'A' }, 'm1');
+  var m2 = S.mergeRecord(newStub, past);
+  assert(m2.action === 'skip', '旧占位 → skip 不回退');
+  var tomb = { id: 't_x', deleted: true, updatedAt: 3000, deviceId: 'A' };
+  var m3 = S.mergeRecord(newStub, tomb);
+  assert(m3.action === 'delete', '墓碑 → 删除占位行');
+})();
+
+console.log('[24] 墓碑队列扫描（v1.1.2：删除可同步）');
+(function () {
+  var mockDb = {
+    _cryptoBridge: {
+      rawRead: function (key) {
+        if (key === 'transactions') return [];
+        if (key === 'settlements') return [];
+        if (key === 'categories') return [];
+        if (key === 'settings') null;
+        if (key === 'tombstones') return [
+          { entityType: 'tx', entityId: 't_priv', updatedAt: 9000, deviceId: 'A', privacy: 'private', shared: false, vaultId: null },
+          { entityType: 'tx', entityId: 't_vault', updatedAt: 9001, deviceId: 'A', privacy: 'vault', shared: false, vaultId: 'a_vault' }
+        ];
+        return null;
+      }
+    }
+  };
+  var dirty = S.scanDirty(mockDb);
+  assert(dirty.length === 2, '扫描出 2 条待推墓碑');
+  var priv = dirty[0], vault = dirty[1];
+  assert(priv.tombstone === true && priv.rec.entityId === 't_priv', '墓碑标记位与 id 正确');
+  assert(priv.route.table === 'family_docs' && priv.route.encKey === 'personal', '私密账墓碑 → family_docs/personal（对方靠墓碑行删除占位）');
+  assert(vault.route.table === 'personal_docs', '小金库墓碑 → personal_docs（仅本人空间）');
+})();
+
+console.log('[25] 真记录无条件覆盖本地占位 stub');
+(function () {
+  var row = { entity_type: 'tx', entity_id: 't_x', meta: { d: '2026-09-13', m: 'm2' }, updated_at: 5000, device_id: 'A' };
+  var stub = S.buildPrivateStub(row, 'm1');
+  // 同一时间戳、同一 deviceId（LWW 原本会 skip），但远端是可解密真记录
+  var real = { id: 't_x', date: '2026-09-13', amount: 80000, privacy: 'private', ownerId: 'm2', updatedAt: 5000, deviceId: 'A', _sync: 'clean' };
+  var m = S.mergeRecord(stub, real);
+  assert(m.action === 'write' && m.record.amount === 80000 && m.record._placeholder === undefined, '同时间戳真记录仍覆盖 stub（密钥恢复场景）');
+  // 远端若是墓碑 → 删除
+  var mDel = S.mergeRecord(stub, { id: 't_x', deleted: true, updatedAt: 5000, deviceId: 'A' });
+  assert(mDel.action === 'delete', '同时间戳墓碑仍删除 stub');
 })();
 
 /* ---- summary ---- */

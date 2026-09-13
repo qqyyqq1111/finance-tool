@@ -25,14 +25,20 @@
     if (!s) return;
     var box = document.getElementById('settings-members');
     box.innerHTML = '';
+    var freeLocked = s.tier === 'free';
     s.members.forEach(function (m) {
       var active = m.id === s.currentViewer;
+      var locked = freeLocked && !active; // 免费版非本人成员位：视觉锁定（点击仍 toast 明确提示）
       var btn = document.createElement('div');
-      btn.className = 'rounded-2xl border p-4 text-left transition relative cursor-pointer ' +
-        (active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50');
+      btn.className = 'rounded-2xl border p-4 text-left transition relative ' +
+        (active ? 'border-indigo-500 bg-indigo-50 cursor-pointer'
+          : locked ? 'border-slate-200 opacity-50 cursor-not-allowed'
+          : 'border-slate-200 hover:bg-slate-50 cursor-pointer');
       btn.innerHTML =
         '<span class="text-3xl">' + m.emoji + '</span>' +
-        '<p class="mt-1 font-medium text-slate-800">' + m.name + (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>' : '') + '</p>' +
+        '<p class="mt-1 font-medium text-slate-800">' + m.name +
+          (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>'
+                  : locked ? ' <span class="text-[10px] text-slate-400">🔒 会员功能</span>' : '') + '</p>' +
         '<button class="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '">✏️ 编辑</button>';
       btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       var edit = btn.querySelector('[data-edit]');
@@ -91,15 +97,21 @@
     if (!s) return;
     var box = document.getElementById('viewer-options');
     box.innerHTML = '';
+    var freeLockedSheet = s.tier === 'free';
     s.members.forEach(function (m) {
       var active = m.id === s.currentViewer;
+      var locked = freeLockedSheet && !active;
       var btn = document.createElement('button');
       btn.className = 'w-full flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ' +
-        (active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50');
+        (active ? 'border-indigo-500 bg-indigo-50'
+          : locked ? 'border-slate-200 opacity-50 cursor-not-allowed'
+          : 'border-slate-200 hover:bg-slate-50');
       btn.innerHTML =
         '<span class="text-2xl">' + m.emoji + '</span>' +
         '<span class="flex-1 font-medium text-slate-800">' + m.name + '</span>' +
-        (active ? '<span class="text-xs text-indigo-500">✓ 当前</span>' : '<span class="text-xs text-slate-300">切换</span>');
+        (active ? '<span class="text-xs text-indigo-500">✓ 当前</span>'
+          : locked ? '<span class="text-xs text-slate-400">🔒 会员功能</span>'
+          : '<span class="text-xs text-slate-300">切换</span>');
       btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       box.appendChild(btn);
     });
@@ -559,6 +571,12 @@
     if (user && window.fcE2E && fcE2E.available()) {
       fcE2E.fetchMembership().then(function (m) {
         membership = m;
+        // 登录态确立（含刷新后会话恢复）：默认切到本人视角（v1.1.2 体验修复）
+        // 注意 currentViewer 是关键字段，patchSettings 白名单会忽略，必须走 switchViewer
+        if (m && m.memberId && fcDb.getCurrentViewer() !== m.memberId && fcDb.findMember(m.memberId)) {
+          fcDb.switchViewer(m.memberId);
+          if (global.renderAll) global.renderAll();
+        }
         S.renderCloud();
         // 链接直达：登录后自动弹加入框
         if (m === null && pendingJoinCode) {
@@ -662,7 +680,7 @@
     var lastPull = parseInt(localStorage.getItem('fc_sync_last_pull') || '0', 10) || 0;
     if (lastPull) {
       var d = new Date(lastPull);
-      lastTime.textContent = '上次同步：' + d.getMonth() + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      lastTime.textContent = '上次同步：' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     } else {
       lastTime.textContent = '尚未同步';
     }
@@ -763,6 +781,10 @@
     fcE2E.createFamily({ familyName: name, myName: me ? me.name : '', password: pw }).then(function (r) {
       btn.disabled = false; btn.classList.remove('opacity-60');
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      // 创建者固定 m1：家庭名写回本机 + 默认本人视角（v1.1.2 体验修复）
+      if (name) fcDb.patchSettings({ familyName: name });
+      fcDb.switchViewer('m1');
+      if (global.renderAll) global.renderAll();
       sheet('pair-create-sheet', false);
       toast('家庭创建成功，现在可以邀请伴侣了', 'success');
       refreshPairing();
@@ -815,6 +837,10 @@
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
       sheet('pair-join-sheet', false);
       pendingJoinCode = null;
+      // 加入者固定 m2：默认切到本人视角并重置记账表单（v1.1.2 体验修复，避免停在对方视角）
+      fcDb.switchViewer('m2');
+      if (global.renderAll) global.renderAll();
+      if (window.ledger && ledger.newEntry) ledger.newEntry();
       toast('已加入家庭，配对成功 🎉', 'success');
       refreshPairing();
     });
@@ -827,6 +853,11 @@
     fcE2E.restoreKeys(pw).then(function (r) {
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
       document.getElementById('restore-pw').value = '';
+      // 换设备恢复后切到本人视角（r.memberId 为备份中的身份位）
+      if (r.memberId) {
+        fcDb.switchViewer(r.memberId);
+        if (global.renderAll) global.renderAll();
+      }
       toast('密钥恢复成功', 'success');
       refreshPairing();
     });

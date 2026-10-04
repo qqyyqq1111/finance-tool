@@ -99,6 +99,15 @@
     if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
     if (window.settingsUI && settingsUI.renderIdentityLock) settingsUI.renderIdentityLock();
     if (window.settingsUI && settingsUI.renderViewLockCard) settingsUI.renderViewLockCard(); // v1.2 批次② 视角锁
+    if (window.fcSavings) {
+      fcSavings.render(); // v1.2 批次③ 看板储蓄目标卡
+      // 设置页入口摘要
+      var g = fcDb.getSavingsGoal();
+      var sumEl = document.getElementById('savings-goal-summary');
+      if (sumEl) sumEl.textContent = g
+        ? '目标 ¥' + Math.round(g.targetAmount / 100).toLocaleString('zh-CN') + ' · 截止 ' + g.targetDate
+        : '设置/编辑家庭共同储蓄目标与里程碑';
+    }
     if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
     if (window.fcSync && fcSync.renderBadge) fcSync.renderBadge(); // v1.1 批次⑨ 顶部同步图标
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
@@ -230,6 +239,8 @@
 
     if (window.fcUI) fcUI.bind(); // v1.2 批次①：统一错误弹层 + focus 防遮挡
     settingsUI.bind();
+    if (window.fcSavings) fcSavings.bind(); // v1.2 批次③：储蓄目标弹层
+    document.getElementById('btn-savings-goal').addEventListener('click', function () { fcSavings.openGoalSheet(); });
     ledger.bind();
     if (window.splitUI) splitUI.bind();
     if (window.dashUI) dashUI.bind();

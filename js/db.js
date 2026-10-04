@@ -185,10 +185,11 @@
         defaultRatio: { m1: r1, m2: 100 - r1 },
         categoryOverrides: {}
       },
-      tier: 'family',           // 商业化模拟：默认家庭会员版（07-PRD §9）
-      encryptionEnabled: false, // 批次⑤：WebCrypto 加密开关
+      tier: 'family',           // 商业化模拟：默认家庭会员版（07-PRD §9，本机态不参与云同步）
+      encryptionEnabled: false, // 批次⑤：WebCrypto 加密开关（本机态不参与云同步）
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      _sync: 'dirty'            // v1.1.3：家庭名等共享设置首次配对时上云
     });
     // 预置分类打同步字段（内容固定双方自带、不推送；hidden 状态变更置 dirty 后同步）
     var presetCats = PRESET_CATEGORIES.map(function (c) {
@@ -221,6 +222,7 @@
       s[k] = patch[k];
     });
     s.updatedAt = Date.now();
+    s._sync = 'dirty'; // v1.1.3：家庭名等共享设置上云（推送时白名单过滤，currentViewer/tier/口令不外发）
     write('settings', s);
     return { ok: true };
   }
@@ -340,6 +342,7 @@
       }
     }
     s.updatedAt = Date.now();
+    s._sync = 'dirty'; // v1.1.3：分摊规则属家庭共享设置
     write('settings', s);
     return { ok: true };
   }
@@ -522,6 +525,7 @@
       m.emoji = String(patch.emoji).slice(0, 4);
     }
     s.updatedAt = Date.now();
+    s._sync = 'dirty'; // v1.1.3：成员昵称/头像属家庭共享资料
     write('settings', s);
     return { ok: true };
   }
@@ -692,6 +696,13 @@
     init: init,
     getSettings: getSettings,
     patchSettings: patchSettings,
+    /** v1.1.3：创建家庭成功后标记本机设置即为家庭权威版（允许上推家庭名等共享设置） */
+    markSettingsAdopted: function () {
+      var s = read('settings');
+      if (!s) return;
+      s._cloudAdopted = true;
+      write('settings', s);
+    },
     findMember: findMember,
     getVaultOf: getVaultOf,
     switchViewer: switchViewer,

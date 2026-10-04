@@ -783,6 +783,7 @@
       if (!r.ok) { errEl.textContent = r.errors[0]; return; }
       // 创建者固定 m1：家庭名写回本机 + 默认本人视角（v1.1.2 体验修复）
       if (name) fcDb.patchSettings({ familyName: name });
+      fcDb.markSettingsAdopted(); // v1.1.3：本机设置即家庭权威版，允许上推共享设置
       fcDb.switchViewer('m1');
       if (global.renderAll) global.renderAll();
       sheet('pair-create-sheet', false);
@@ -843,6 +844,15 @@
       if (window.ledger && ledger.newEntry) ledger.newEntry();
       toast('已加入家庭，配对成功 🎉', 'success');
       refreshPairing();
+      // v1.1.3：加入后立即拉取一次，首次 pull 会无条件采纳家庭名/成员资料/分摊规则
+      if (window.fcSync && fcSync.syncNow) {
+        fcSync.syncNow().then(function (res) {
+          if (res && res.ok && res.pulled) {
+            if (global.renderAll) global.renderAll();
+            toast('已同步家庭数据', 'success');
+          }
+        });
+      }
     });
   };
 

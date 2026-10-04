@@ -181,7 +181,7 @@ console.log('[12] dirty 扫描 — settings');
         if (key === 'transactions') return [];
         if (key === 'settlements') return [];
         if (key === 'categories') return [{ id: 'c1', _sync: 'dirty' }];
-        if (key === 'settings') return { _sync: 'dirty', members: [] };
+        if (key === 'settings') return { _sync: 'dirty', _cloudAdopted: true, members: [] };
         return null;
       }
     }
@@ -189,6 +189,20 @@ console.log('[12] dirty 扫描 — settings');
   var dirty = S.scanDirty(mockDb);
   assert(dirty.length === 2, '扫描出 2 条 dirty（category+settings）');
   assert(dirty[1].entityType === 'settings', '最后一条是 settings');
+
+  // v1.1.3：未完成云端采纳的 settings 不推送（防止新加入者反向覆盖家庭名）
+  var mockDbUnadopted = {
+    _cryptoBridge: {
+      rawRead: function (key) {
+        if (key === 'transactions') return [];
+        if (key === 'settlements') return [];
+        if (key === 'categories') return [];
+        if (key === 'settings') return { _sync: 'dirty', familyName: '我们的家' };
+        return null;
+      }
+    }
+  };
+  assert(S.scanDirty(mockDbUnadopted).length === 0, '未采纳的 settings 即使 dirty 也不上推');
 })();
 
 /* =================== [13] LWW 边界：updatedAt 为 0 =================== */
@@ -358,6 +372,101 @@ console.log('[25] 真记录无条件覆盖本地占位 stub');
   // 远端若是墓碑 → 删除
   var mDel = S.mergeRecord(stub, { id: 't_x', deleted: true, updatedAt: 5000, deviceId: 'A' });
   assert(mDel.action === 'delete', '同时间戳墓碑仍删除 stub');
+})();
+
+/* =================== [26] settings 上云白名单（v1.1.3 家庭名同步） =================== */
+console.log('[26] sanitizeSettingsForCloud — 只带家庭共享字段');
+(function () {
+  var s = {
+    familyName: '验收之家v112',
+    members: [{ id: 'm1', name: '阿晨' }, { id: 'm2', name: '小棠' }],
+    splitRule: { defaultRatio: { m1: 50, m2: 50 }, categoryOverrides: {} },
+    currentViewer: 'm2',
+    tier: 'family',
+    encryptionEnabled: true,
+    vaultPwdHash: 'secret-hash',
+    pinHash: '1234-hash',
+    idLock: true,
+    _cloudAdopted: true,
+    createdAt: 1000,
+    updatedAt: 2000,
+    deviceId: 'dev-A',
+    _sync: 'dirty'
+  };
+  var out = S.sanitizeSettingsForCloud(s);
+  assert(out.id === 'settings', '载荷 id 固定为 settings');
+  assert(out.familyName === '验收之家v112', 'familyName 上云');
+  assert(out.members.length === 2 && out.splitRule.defaultRatio.m1 === 50, 'members/splitRule 上云');
+  assert(out.updatedAt === 2000 && out.deviceId === 'dev-A', '同步元数据保留');
+  assert(out.currentViewer === undefined, 'currentViewer 不上云（设备视角）');
+  assert(out.tier === undefined, 'tier 不上云（本机商业化模式）');
+  assert(out.encryptionEnabled === undefined && out.vaultPwdHash === undefined && out.pinHash === undefined && out.idLock === undefined,
+    '加密开关/口令/PIN/身份锁不上云');
+  assert(out.createdAt === undefined && out._cloudAdopted === undefined, 'createdAt 与采纳标记不上云');
+  assert(out._sync === 'clean', '载荷同步位为 clean');
+})();
+
+/* =================== [27] buildPushPayload：entity_id 路由 =================== */
+console.log('[27] buildPushPayload — settings 固定 entity_id，墓碑空壳');
+(function () {
+  var settingsItem = { entityType: 'settings', tombstone: false, rec: { familyName: '家', _sync: 'dirty' } };
+  var pp = S.buildPushPayload(settingsItem);
+  assert(pp.id === 'settings', 'settings 推送 entity_id=settings（修复 undefined 导致设置从未上云）');
+  var parsed = JSON.parse(pp.payload);
+  assert(parsed.id === 'settings' && parsed.familyName === '家' && parsed.currentViewer === undefined,
+    'settings 载荷为白名单消毒后的 JSON');
+
+  var txItem = { entityType: 'tx', tombstone: false, rec: { id: 't_1', amount: 100 } };
+  var ppTx = S.buildPushPayload(txItem);
+  assert(ppTx.id === 't_1' && JSON.parse(ppTx.payload).amount === 100, '普通记录用自身 id 与原载荷');
+
+  var tombItem = { entityType: 'tx', tombstone: true, rec: { entityId: 't_2' } };
+  var ppTb = S.buildPushPayload(tombItem);
+  assert(ppTb.id === 't_2' && ppTb.payload === '{}', '墓碑用原 entityId + 空壳载荷');
+})();
+
+/* =================== [28] pull settings 白名单隔离（v1.1.3） =================== */
+console.log('[28] applyCloudSettings — 只落共享字段，本机态不被覆盖');
+(function () {
+  var local = {
+    familyName: '旧家庭名',
+    members: [{ id: 'm1', name: '旧名' }],
+    splitRule: { defaultRatio: { m1: 60, m2: 40 } },
+    currentViewer: 'm2',
+    tier: 'free',
+    encryptionEnabled: true,
+    vaultPwdHash: 'keep-me',
+    pinHash: 'keep-me-too',
+    _cloudAdopted: true,
+    createdAt: 1000,
+    updatedAt: 1500,
+    _sync: 'clean'
+  };
+  var mockDb = { _cryptoBridge: { rawRead: function () { return local; }, rawWrite: function (k, v) { if (k === 'settings') local = v; } } };
+  var remote = {
+    id: 'settings',
+    familyName: '云端家庭名',
+    members: [{ id: 'm1', name: '新名' }],
+    splitRule: { defaultRatio: { m1: 30, m2: 70 } },
+    currentViewer: 'm1',          // 恶意/异常载荷试图切视角
+    tier: 'premium',              // 试图改本机版本模式
+    encryptionEnabled: false,     // 试图关加密
+    vaultPwdHash: 'evil',
+    pinHash: 'evil2',
+    updatedAt: 2000,
+    deviceId: 'dev-B',
+    _sync: 'clean'
+  };
+  S.applyCloudSettings(mockDb, remote);
+  assert(local.familyName === '云端家庭名' && local.members[0].name === '新名' && local.splitRule.defaultRatio.m1 === 30,
+    '家庭共享字段被云端更新');
+  assert(local.currentViewer === 'm2', 'currentViewer 保持本机视角不被覆盖');
+  assert(local.tier === 'free', 'tier 保持本机模式');
+  assert(local.encryptionEnabled === true && local.vaultPwdHash === 'keep-me' && local.pinHash === 'keep-me-too',
+    '加密开关/口令/PIN 保持本机值');
+  assert(local.createdAt === 1000 && local._cloudAdopted === true, 'createdAt 与本机标记保留');
+  assert(local.updatedAt === 2000 && local.deviceId === 'dev-B' && local._sync === 'clean',
+    '同步时间戳/设备位更新且标记 clean');
 })();
 
 /* ---- summary ---- */

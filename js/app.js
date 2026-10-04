@@ -227,6 +227,7 @@
       showPage('add');
     });
 
+    if (window.fcUI) fcUI.bind(); // v1.2 批次①：统一错误弹层 + focus 防遮挡
     settingsUI.bind();
     ledger.bind();
     if (window.splitUI) splitUI.bind();

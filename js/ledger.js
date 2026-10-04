@@ -261,7 +261,7 @@
     $('f-shared-row').classList.toggle('hidden', !show);
     var btn = $('f-shared');
     btn.textContent = form.shared ? '开启' : '关闭';
-    btn.className = 'text-sm font-medium rounded-full px-3 py-1.5 transition ' +
+    btn.className = 'text-sm font-medium rounded-full px-3 min-h-[44px] inline-flex items-center justify-center transition ' +
       (form.shared ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400');
   }
 
@@ -292,7 +292,7 @@
     box.innerHTML = '';
     s.members.forEach(function (m) {
       var btn = document.createElement('button');
-      btn.className = 'rounded-xl py-2.5 text-sm font-medium border transition ' +
+      btn.className = 'rounded-xl min-h-[44px] py-2.5 text-sm font-medium border transition inline-flex items-center justify-center ' +
         (form.ownerId === m.id ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-slate-200 bg-white text-slate-600');
       btn.innerHTML = m.emoji + ' ' + m.name;
       btn.addEventListener('click', function () {

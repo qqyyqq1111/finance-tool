@@ -39,7 +39,7 @@
         '<p class="mt-1 font-medium text-slate-800">' + m.name +
           (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>'
                   : locked ? ' <span class="text-[10px] text-slate-400">🔒 会员功能</span>' : '') + '</p>' +
-        '<button class="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '">✏️ 编辑</button>';
+        '<button class="absolute top-0 right-0 w-11 h-11 flex items-center justify-center text-base text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '" aria-label="编辑成员">✏️</button>';
       btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       var edit = btn.querySelector('[data-edit]');
       edit.addEventListener('click', function (e) {
@@ -323,9 +323,9 @@
         '<span class="flex-1 text-slate-700">' + c.name +
         '<span class="text-[10px] text-slate-400 ml-1">' + (c.type === 'expense' ? '支出' : '收入') + (c.builtin ? ' · 预置' : ' · 自定义') + '</span></span>' +
         (c.builtin
-          ? '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>'
-          : '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>' +
-            '<button class="text-[11px] text-rose-400 underline" data-del>删除</button>');
+          ? '<button class="text-[11px] text-slate-500 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>'
+          : '<button class="text-[11px] text-slate-500 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>' +
+            '<button class="text-[11px] text-rose-400 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-del>删除</button>');
       row.querySelector('[data-hide]').addEventListener('click', function () {
         var r = fcDb.categories.setHidden(c.id, !c.hidden);
         if (!r.ok) { global.toast(r.errors[0]); return; }

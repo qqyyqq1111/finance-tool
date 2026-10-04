@@ -98,6 +98,7 @@
     settingsUI.renderTier();
     if (window.settingsUI && settingsUI.renderCrypto) settingsUI.renderCrypto();
     if (window.settingsUI && settingsUI.renderIdentityLock) settingsUI.renderIdentityLock();
+    if (window.settingsUI && settingsUI.renderViewLockCard) settingsUI.renderViewLockCard(); // v1.2 批次② 视角锁
     if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
     if (window.fcSync && fcSync.renderBadge) fcSync.renderBadge(); // v1.1 批次⑨ 顶部同步图标
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总

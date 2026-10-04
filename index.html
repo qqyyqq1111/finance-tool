@@ -402,6 +402,21 @@
                     </div>
                 </div>
 
+                <!-- F16 视角锁定（v1.2 批次②，本机态不上云） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">📌 视角锁定 <span id="viewlock-status" class="text-[10px] font-normal ml-1 text-slate-400">未锁定</span></h2>
+                    <p class="text-xs text-slate-400 mb-1 leading-relaxed">开启后锁定当前身份视角：顶部的身份切换按钮会置灰，任何人都不能在这台设备切换到对方视角。</p>
+                    <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">锁定状态仅保存在本机、不会同步，两台手机各自独立。解锁需要身份切换口令。</p>
+                    <button id="viewlock-toggle" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] font-medium active:opacity-80">锁定当前视角</button>
+                </div>
+
+                <!-- F16 切换隐私提示开关（v1.2 批次②） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-1">切换时隐私提示</h2>
+                    <p class="text-xs text-slate-400 mb-3">切换视角前弹窗提示"能看到什么、看不到什么"。如果之前勾选过"不再提示"，可在此重新打开。</p>
+                    <button id="switch-hint-toggle" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] font-medium active:opacity-80">已开启提示</button>
+                </div>
+
                 <!-- 退出当前家庭（v1.0.1，R8） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">退出当前家庭</h2>
@@ -530,6 +545,30 @@
                     <div class="grid grid-cols-2 gap-3">
                         <button id="pin-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
                         <button id="pin-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">确认</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- F16 切换视角隐私确认弹层（v1.2 批次②） -->
+        <div id="switch-confirm" class="hidden fixed inset-0 z-[60]">
+            <div class="absolute inset-0 bg-black/40" id="switch-confirm-mask"></div>
+            <div class="absolute inset-0 flex items-center justify-center p-6">
+                <div class="bg-white w-full max-w-sm rounded-2xl p-5">
+                    <h3 class="font-semibold text-slate-800 mb-1">切换到「<span id="sc-name" class="text-indigo-600"></span>」视角</h3>
+                    <p class="text-xs text-slate-400 mb-3">切换后你将看到：</p>
+                    <ul class="space-y-2.5 text-sm text-slate-600 mb-4">
+                        <li class="flex items-start gap-2"><span>✅</span><span>TA 的<b>公开账目</b>（房租、餐饮等共同开销）</span></li>
+                        <li class="flex items-start gap-2"><span>🔒</span><span>TA 的<b>私密账</b>仅显示灰色占位行，看不到金额和内容</span></li>
+                        <li class="flex items-start gap-2"><span>💰</span><span>TA 的<b>小金库</b>完全不可见，和切换前一样</span></li>
+                    </ul>
+                    <label class="flex items-center gap-2 text-xs text-slate-500 mb-4 min-h-[44px] cursor-pointer">
+                        <input id="sc-nomore" type="checkbox" class="w-4 h-4 accent-indigo-600">
+                        不再提示（可在设置页重新打开）
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="sc-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-2.5 min-h-[44px] active:opacity-80">取消</button>
+                        <button id="sc-ok" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-2.5 min-h-[44px] active:opacity-80">确认切换</button>
                     </div>
                 </div>
             </div>

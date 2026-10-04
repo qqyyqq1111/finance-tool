@@ -39,7 +39,7 @@
         '<p class="mt-1 font-medium text-slate-800">' + m.name +
           (active ? ' <span class="text-[10px] text-indigo-500">当前查看</span>'
                   : locked ? ' <span class="text-[10px] text-slate-400">🔒 会员功能</span>' : '') + '</p>' +
-        '<button class="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '">✏️ 编辑</button>';
+        '<button class="absolute top-0 right-0 w-11 h-11 flex items-center justify-center text-base text-slate-400 hover:text-indigo-500" data-edit="' + m.id + '" aria-label="编辑成员">✏️</button>';
       btn.addEventListener('click', function () { S.requestSwitch(m.id); });
       var edit = btn.querySelector('[data-edit]');
       edit.addEventListener('click', function (e) {
@@ -323,9 +323,9 @@
         '<span class="flex-1 text-slate-700">' + c.name +
         '<span class="text-[10px] text-slate-400 ml-1">' + (c.type === 'expense' ? '支出' : '收入') + (c.builtin ? ' · 预置' : ' · 自定义') + '</span></span>' +
         (c.builtin
-          ? '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>'
-          : '<button class="text-[11px] text-slate-500 underline" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>' +
-            '<button class="text-[11px] text-rose-400 underline" data-del>删除</button>');
+          ? '<button class="text-[11px] text-slate-500 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>'
+          : '<button class="text-[11px] text-slate-500 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-hide>' + (c.hidden ? '恢复' : '隐藏') + '</button>' +
+            '<button class="text-[11px] text-rose-400 underline min-w-[44px] min-h-[44px] inline-flex items-center justify-center" data-del>删除</button>');
       row.querySelector('[data-hide]').addEventListener('click', function () {
         var r = fcDb.categories.setHidden(c.id, !c.hidden);
         if (!r.ok) { global.toast(r.errors[0]); return; }
@@ -461,19 +461,19 @@
     if (cryptoSheetMode === 'enable') {
       var pin2 = document.getElementById('crypto-pin2').value.trim();
       if (pin !== pin2) { err.textContent = '两次输入不一致'; return; }
-      btn.disabled = true; btn.textContent = '加密中…';
+      fcUI.setLoading(btn, true, '加密中…');
       fcCrypto.enable(pin).then(function (r) {
-        btn.disabled = false; btn.textContent = '确认开启';
-        if (!r.ok) { err.textContent = r.errors[0]; return; }
+        fcUI.setLoading(btn, false);
+        if (!r.ok) { err.textContent = fcUI.mapError(r.errors[0]).message; return; }
         S.closeCryptoSheet();
         global.toast('加密已开启');
         global.renderAll();
       });
     } else {
-      btn.disabled = true; btn.textContent = '验证中…';
+      fcUI.setLoading(btn, true, '验证中…');
       fcCrypto.disable(pin).then(function (r) {
-        btn.disabled = false; btn.textContent = '验证并关闭';
-        if (!r.ok) { err.textContent = r.errors[0]; return; }
+        fcUI.setLoading(btn, false);
+        if (!r.ok) { err.textContent = fcUI.mapError(r.errors[0]).message; return; }
         S.closeCryptoSheet();
         global.toast('加密已关闭，数据恢复明文存储');
         location.reload();
@@ -700,11 +700,19 @@
 
   S.manualSync = function () {
     if (!window.fcSync) return;
+    var btn = document.getElementById('btn-manual-sync');
+    if (btn && btn.disabled) return; // 同步中防连点（v1.2：按钮态由 syncNow 立即驱动）
     fcSync.syncNow().then(function (r) {
       if (r.ok) {
         toast('同步完成（推送' + (r.pushed || 0) + '条，拉取' + (r.pulled || 0) + '条）', 'success');
       } else {
-        toast((r.errors && r.errors[0]) || '同步失败', 'error');
+        var mapped = fcUI.mapError((r.errors && r.errors[0]) || '同步失败');
+        if (mapped.retryable) {
+          // 网络/服务不可用：弹层 + 重试按钮
+          fcUI.showError(mapped.title, mapped.message, { retry: S.manualSync, retryText: '重试同步' });
+        } else {
+          toast(mapped.message);
+        }
       }
       S.renderSyncStatus();
     });
@@ -729,14 +737,16 @@
     var pwd = document.getElementById('auth-password').value;
     var errEl = document.getElementById('auth-err');
     var btn = document.getElementById('auth-submit');
+    if (btn.disabled) return;
     errEl.textContent = '';
-    btn.disabled = true;
-    btn.classList.add('opacity-60');
+    // 本地即时校验（文案说人话）
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = '邮箱格式好像不对'; return; }
+    if (pwd.length < 6) { errEl.textContent = '密码至少 6 位'; return; }
+    fcUI.setLoading(btn, true, authMode === 'signin' ? '登录中…' : '注册中…');
     var p = authMode === 'signin' ? global.cloud.signIn(email, pwd) : global.cloud.signUp(email, pwd);
     p.then(function (r) {
-      btn.disabled = false;
-      btn.classList.remove('opacity-60');
-      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      fcUI.setLoading(btn, false);
+      if (!r.ok) { errEl.textContent = fcUI.mapError(r.errors[0]).message; return; }
       document.getElementById('auth-password').value = '';
       S.closeAuth();
       toast(authMode === 'signup' ? '注册成功' : '登录成功', 'success');
@@ -751,9 +761,13 @@
   };
 
   S.signOutCloud = function () {
+    var btn = document.getElementById('btn-cloud-signout');
+    if (btn && btn.disabled) return;
+    fcUI.setLoading(btn, true, '退出中…');
     global.cloud.signOut().then(function (r) {
+      fcUI.setLoading(btn, false);
       membership = null;
-      toast(r.ok ? '已退出登录，本机数据保留' : (r.errors[0] || '退出失败'));
+      toast(r.ok ? '已退出登录，本机数据保留' : fcUI.mapError(r.errors[0] || '退出失败').message);
     });
   };
 
@@ -777,10 +791,10 @@
     var s = fcDb.getSettings();
     var me = s ? fcDb.findMember(s.currentViewer) : null;
     errEl.textContent = '';
-    btn.disabled = true; btn.classList.add('opacity-60');
+    fcUI.setLoading(btn, true, '创建中…');
     fcE2E.createFamily({ familyName: name, myName: me ? me.name : '', password: pw }).then(function (r) {
-      btn.disabled = false; btn.classList.remove('opacity-60');
-      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      fcUI.setLoading(btn, false);
+      if (!r.ok) { errEl.textContent = fcUI.mapError(r.errors[0]).message; return; }
       // 创建者固定 m1：家庭名写回本机 + 默认本人视角（v1.1.2 体验修复）
       if (name) fcDb.patchSettings({ familyName: name });
       fcDb.markSettingsAdopted(); // v1.1.3：本机设置即家庭权威版，允许上推共享设置
@@ -795,10 +809,11 @@
   S.openInviteSheet = function () {
     if (!fcE2E.state()) { toast('请先创建家庭'); return; }
     var btn = document.getElementById('btn-pair-invite');
-    btn.disabled = true; btn.classList.add('opacity-60');
+    if (btn.disabled) return;
+    fcUI.setLoading(btn, true, '生成中…');
     fcE2E.createInvite().then(function (r) {
-      btn.disabled = false; btn.classList.remove('opacity-60');
-      if (!r.ok) { toast(r.errors[0]); return; }
+      fcUI.setLoading(btn, false);
+      if (!r.ok) { toast(fcUI.mapError(r.errors[0]).message); return; }
       document.getElementById('invite-link').value = r.link;
       document.getElementById('invite-short').textContent = r.short;
       sheet('invite-sheet', true);
@@ -832,10 +847,10 @@
     var errEl = document.getElementById('pair-join-err');
     var btn = document.getElementById('pair-join-confirm');
     errEl.textContent = '';
-    btn.disabled = true; btn.classList.add('opacity-60');
+    fcUI.setLoading(btn, true, '加入中…');
     fcE2E.redeemInvite(code, pw).then(function (r) {
-      btn.disabled = false; btn.classList.remove('opacity-60');
-      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      fcUI.setLoading(btn, false);
+      if (!r.ok) { errEl.textContent = fcUI.mapError(r.errors[0]).message; return; }
       sheet('pair-join-sheet', false);
       pendingJoinCode = null;
       // 加入者固定 m2：默认切到本人视角并重置记账表单（v1.1.2 体验修复，避免停在对方视角）
@@ -859,9 +874,13 @@
   S.confirmRestoreKeys = function () {
     var pw = document.getElementById('restore-pw').value;
     var errEl = document.getElementById('restore-err');
+    var btn = document.getElementById('btn-restore-keys');
+    if (btn.disabled) return;
     errEl.textContent = '';
+    fcUI.setLoading(btn, true, '恢复中…');
     fcE2E.restoreKeys(pw).then(function (r) {
-      if (!r.ok) { errEl.textContent = r.errors[0]; return; }
+      fcUI.setLoading(btn, false);
+      if (!r.ok) { errEl.textContent = fcUI.mapError(r.errors[0]).message; return; }
       document.getElementById('restore-pw').value = '';
       // 换设备恢复后切到本人视角（r.memberId 为备份中的身份位）
       if (r.memberId) {

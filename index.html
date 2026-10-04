@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -27,11 +27,11 @@
         </div>
 
         <!-- 云账号登录/注册弹层（v1.1 批次⑥：认证；配对与同步在后续批次） -->
-        <div id="auth-mask" class="hidden fixed inset-0 z-[70] bg-slate-900/50 flex items-center justify-center p-6">
+        <div id="auth-mask" class="keyboard-adapt hidden fixed inset-0 z-[70] bg-slate-900/50 flex items-center justify-center p-6">
             <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-3">
                 <div class="flex items-center justify-between">
                     <h2 id="auth-title" class="font-semibold text-slate-800">登录云同步</h2>
-                    <button id="auth-close" class="text-slate-400 text-sm px-2 py-0.5 active:opacity-60">取消</button>
+                    <button id="auth-close" class="text-slate-400 text-sm min-w-[44px] min-h-[44px] flex items-center justify-center active:opacity-60">取消</button>
                 </div>
                 <p class="text-xs text-slate-400 leading-relaxed">两台手机登录同一账号后，账目会自动加密同步。云端只存密文，即使服务器被看也读不出内容。</p>
                 <input id="auth-email" type="email" autocomplete="username" placeholder="邮箱地址"
@@ -39,8 +39,8 @@
                 <input id="auth-password" type="password" autocomplete="current-password" placeholder="密码（至少 6 位）"
                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
                 <p id="auth-err" class="text-xs text-rose-500 min-h-[1rem] leading-relaxed"></p>
-                <button id="auth-submit" class="w-full bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium active:opacity-80">登录</button>
-                <button id="auth-switch" class="w-full text-xs text-indigo-600 py-1 active:opacity-60">没有账号？点此注册</button>
+                <button id="auth-submit" class="w-full bg-indigo-600 text-white rounded-xl py-2.5 min-h-[44px] text-sm font-medium active:opacity-80">登录</button>
+                <button id="auth-switch" class="w-full text-xs text-indigo-600 min-h-[44px] flex items-center justify-center active:opacity-60">没有账号？点此注册</button>
             </div>
         </div>
 
@@ -51,7 +51,7 @@
                     <h1 id="app-title" class="font-bold text-slate-800 leading-tight flex items-center gap-1.5">我们的家<span id="sync-badge" class="text-xs font-normal"></span></h1>
                     <p class="text-[10px] text-slate-400 leading-tight">本地存储 · 数据不出设备</p>
                 </div>
-                <button id="viewer-chip" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 transition rounded-full pl-1.5 pr-3 py-1">
+                <button id="viewer-chip" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 transition rounded-full pl-1.5 pr-3 py-1 min-h-[44px]">
                     <span id="viewer-emoji" class="text-lg leading-none">🧑</span>
                     <span id="viewer-name" class="text-sm text-slate-700">成员A</span>
                     <span class="text-[10px] text-slate-400">切换</span>
@@ -79,7 +79,7 @@
 
                 <!-- 月份切换 + 当月汇总 -->
                 <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
-                    <button id="month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <button id="month-prev" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
                     <div class="text-center">
                         <p id="month-label" class="font-semibold text-slate-800">—</p>
                         <p class="text-xs text-slate-400 mt-0.5">收 <span id="month-income" class="text-emerald-500 font-medium">+¥0.00</span>
@@ -88,7 +88,7 @@
                             ·
                             结余 <span id="month-balance" class="font-medium">¥0.00</span></p>
                     </div>
-                    <button id="month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                    <button id="month-next" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
                 </div>
 
                 <!-- 账目列表 -->
@@ -128,9 +128,9 @@
                 <div id="f-privacy-block">
                     <p class="text-xs text-slate-400 mb-2">隐私层级</p>
                     <div id="f-privacy" class="grid grid-cols-3 gap-2">
-                        <button data-v="public" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🌐 公开</button>
-                        <button data-v="private" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">🔒 单笔私密</button>
-                        <button data-v="vault" class="f-privacy-btn rounded-xl py-2.5 text-sm font-medium border transition">💰 小金库</button>
+                        <button data-v="public" class="f-privacy-btn rounded-xl py-2.5 min-h-[44px] text-sm font-medium border transition">🌐 公开</button>
+                        <button data-v="private" class="f-privacy-btn rounded-xl py-2.5 min-h-[44px] text-sm font-medium border transition">🔒 单笔私密</button>
+                        <button data-v="vault" class="f-privacy-btn rounded-xl py-2.5 min-h-[44px] text-sm font-medium border transition">💰 小金库</button>
                     </div>
                     <p id="f-privacy-hint" class="text-[11px] text-slate-400 mt-1.5 leading-relaxed"></p>
                     <p class="text-[10px] text-slate-300 mt-1.5 leading-relaxed">一句话区分：私密账=对方知道你花了钱但不知道细节；小金库=对方完全不知道这笔钱存在</p>
@@ -161,12 +161,12 @@
 
                 <!-- 月份切换 + 状态 -->
                 <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
-                    <button id="s-month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <button id="s-month-prev" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
                     <div class="text-center">
                         <p id="s-month-label" class="font-semibold text-slate-800">—</p>
                         <p id="s-status" class="text-xs text-slate-400 mt-0.5">—</p>
                     </div>
-                    <button id="s-month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                    <button id="s-month-next" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
                 </div>
 
                 <!-- 结算结果大字卡片 -->
@@ -214,9 +214,9 @@
 
                 <!-- 月份切换 -->
                 <div class="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-3">
-                    <button id="d-month-prev" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
+                    <button id="d-month-prev" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">‹</button>
                     <p id="d-month-label" class="font-semibold text-slate-800">—</p>
-                    <button id="d-month-next" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
+                    <button id="d-month-next" class="w-11 h-11 rounded-full hover:bg-slate-100 text-slate-500 text-lg">›</button>
                 </div>
 
                 <!-- 本月收支大卡 -->
@@ -280,13 +280,13 @@
                     <h2 class="font-semibold text-slate-800 mb-1">数据备份与导出</h2>
                     <p class="text-xs text-slate-400 mb-3">⚠️ 浏览器清理缓存会清空数据，建议每月导出一次备份</p>
                     <div class="flex gap-3">
-                        <button id="btn-export" class="flex-1 bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">导出 JSON</button>
-                        <label class="flex-1 text-center bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 cursor-pointer active:opacity-80">
+                        <button id="btn-export" class="flex-1 bg-slate-800 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">导出 JSON</button>
+                        <label class="flex-1 text-center bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 min-h-[44px] flex items-center justify-center cursor-pointer active:opacity-80">
                             导入 JSON
                             <input id="file-import" type="file" accept=".json,application/json" class="hidden">
                         </label>
                     </div>
-                    <button id="btn-csv" class="w-full mt-2 bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">
+                    <button id="btn-csv" class="w-full mt-2 bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">
                         导出 Excel/CSV（仅当前视角可见账目）
                     </button>
                 </div>
@@ -301,7 +301,7 @@
                     <!-- 态2：已配置但未登录 -->
                     <div id="cloud-signedout" class="hidden">
                         <p class="text-xs text-slate-400 mb-3 leading-relaxed">登录账号后，两台手机的账目将自动加密同步。数据在上传前已在本机加密，云端只存密文。</p>
-                        <button id="btn-cloud-auth" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">登录 / 注册</button>
+                        <button id="btn-cloud-auth" class="w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">登录 / 注册</button>
                     </div>
                     <!-- 态3：已登录（配对与同步，v1.1 批次⑦起） -->
                     <div id="cloud-signedin" class="hidden">
@@ -312,15 +312,15 @@
                             <p id="nofamily-stale-warn" class="hidden text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-2 leading-relaxed">本机还留有其他账号的配对数据。加入或创建家庭后会自动替换为本账号的数据。</p>
                             <p class="text-xs text-slate-400 mb-3 leading-relaxed">两个人各自登录后，一方创建家庭并发出邀请，另一方输入邀请码即完成配对。配对前所有数据仍只保存在本机。</p>
                             <div class="grid grid-cols-2 gap-2">
-                                <button id="btn-pair-create" class="bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">创建家庭</button>
-                                <button id="btn-pair-join" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">输入邀请码</button>
+                                <button id="btn-pair-create" class="bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">创建家庭</button>
+                                <button id="btn-pair-join" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">输入邀请码</button>
                             </div>
                         </div>
 
                         <!-- 3b：已建/已加入家庭 -->
                         <div id="cloud-hasfamily" class="hidden">
                             <p id="pair-status" class="text-xs text-slate-500 mb-2 leading-relaxed"></p>
-                            <button id="btn-pair-invite" class="hidden w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">邀请伴侣加入</button>
+                            <button id="btn-pair-invite" class="hidden w-full bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">邀请伴侣加入</button>
                             <!-- 同步状态区（已配对时显示，批次⑨） -->
                             <div id="sync-status-area" class="hidden mt-3 p-3 bg-slate-50 rounded-xl">
                                 <div class="flex items-center justify-between mb-1.5">
@@ -328,7 +328,7 @@
                                     <span id="sync-status-text" class="text-[11px] font-medium text-slate-500">未知</span>
                                 </div>
                                 <p id="sync-last-time" class="text-[11px] text-slate-400 leading-relaxed">尚未同步</p>
-                                <button id="btn-manual-sync" class="mt-2 w-full bg-indigo-600 text-white text-sm rounded-lg py-2 active:opacity-80">立即同步</button>
+                                <button id="btn-manual-sync" class="mt-2 w-full bg-indigo-600 text-white text-sm rounded-lg py-2 min-h-[44px] active:opacity-80">立即同步</button>
                                 <p id="sync-error-msg" class="hidden text-[11px] text-rose-500 mt-1.5 leading-relaxed"></p>
                             </div>
                             <p id="pair-sync-hint" class="text-[11px] text-slate-400 mt-2 leading-relaxed hidden">公开账目自动加密同步；私密账对方仅见占位行；小金库不上传共享区。</p>
@@ -340,12 +340,12 @@
                             <div class="flex gap-2">
                                 <input id="restore-pw" type="password" placeholder="登录密码"
                                        class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
-                                <button id="btn-restore-keys" class="bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">恢复</button>
+                                <button id="btn-restore-keys" class="bg-indigo-600 text-white text-sm rounded-xl px-4 min-h-[44px] active:opacity-80">恢复</button>
                             </div>
                             <p id="restore-err" class="text-xs text-rose-500 mt-2 min-h-[1rem]"></p>
                         </div>
 
-                        <button id="btn-cloud-signout" class="mt-3 w-full bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">退出登录（保留本机数据）</button>
+                        <button id="btn-cloud-signout" class="mt-3 w-full bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">退出登录（保留本机数据）</button>
                     </div>
                 </div>
 
@@ -356,12 +356,12 @@
                     <div id="cat-list" class="divide-y divide-slate-50"></div>
                     <div class="flex gap-2 mt-3">
                         <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs">
-                            <button data-v="expense" class="cat-type-btn active px-3 py-2 border-indigo-500 bg-indigo-50 text-indigo-600">支出</button>
-                            <button data-v="income" class="cat-type-btn px-3 py-2 border-slate-200 text-slate-600">收入</button>
+                            <button data-v="expense" class="cat-type-btn active px-3 py-2 min-h-[44px] border-indigo-500 bg-indigo-50 text-indigo-600">支出</button>
+                            <button data-v="income" class="cat-type-btn px-3 py-2 min-h-[44px] border-slate-200 text-slate-600">收入</button>
                         </div>
                         <input id="cat-name" type="text" maxlength="5" placeholder="新分类名"
                                class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-400">
-                        <button id="cat-add" class="bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">添加</button>
+                        <button id="cat-add" class="bg-indigo-600 text-white text-sm rounded-xl px-4 min-h-[44px] active:opacity-80">添加</button>
                     </div>
                 </div>
 
@@ -371,11 +371,11 @@
                     <p class="text-xs text-slate-400 mb-1 leading-relaxed break-words">这是干嘛的？给整本账再加一把锁：开启后，账目数据在本机以密文保存——即使别人借用你的电脑浏览器、或拿到导出文件，没有口令也读不出任何账目内容。</p>
                     <p class="text-xs text-slate-400 mb-3 leading-relaxed break-words">不开也行：默认已有三层隐私和身份切换锁保护。开启后每次刷新都要输入6位数字口令解锁；忘记口令数据无法恢复，请谨慎设置。</p>
                     <div id="crypto-off" class="flex gap-2">
-                        <button id="btn-crypto-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启加密</button>
+                        <button id="btn-crypto-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">开启加密</button>
                     </div>
                     <div id="crypto-on" class="hidden grid grid-cols-2 gap-2">
-                        <button id="btn-crypto-lock" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">立即锁定</button>
-                        <button id="btn-crypto-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">关闭加密</button>
+                        <button id="btn-crypto-lock" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">立即锁定</button>
+                        <button id="btn-crypto-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">关闭加密</button>
                     </div>
                 </div>
 
@@ -384,8 +384,8 @@
                     <h2 class="font-semibold text-slate-800 mb-1">版本模式 <span class="text-[10px] font-normal text-slate-400 ml-1">演示功能</span></h2>
                     <p class="text-xs text-slate-400 mb-3">这是作品集里的"商业化解锁"演示：模拟免费版 vs 会员版的差别，可以随意切换玩玩，不影响你的任何数据，随时切回来就行。免费版会隐藏双人协作相关入口（结算/身份切换/隐私/小金库/CSV 导出），家庭会员版 = 全功能。</p>
                     <div class="flex gap-2">
-                        <button id="tier-free" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-slate-100 text-slate-500">免费版</button>
-                        <button id="tier-family" class="flex-1 rounded-xl py-2.5 text-sm font-medium bg-indigo-600 text-white">家庭会员版</button>
+                        <button id="tier-free" class="flex-1 rounded-xl py-2.5 min-h-[44px] text-sm font-medium bg-slate-100 text-slate-500">免费版</button>
+                        <button id="tier-family" class="flex-1 rounded-xl py-2.5 min-h-[44px] text-sm font-medium bg-indigo-600 text-white">家庭会员版</button>
                     </div>
                 </div>
 
@@ -394,11 +394,11 @@
                     <h2 class="font-semibold text-slate-800 mb-1">🔒 身份切换锁 <span id="idlock-status" class="text-[10px] font-normal ml-1 text-slate-400">未开启</span></h2>
                     <p class="text-xs text-slate-400 mb-3">开启后，切换到对方的视角需要输入切换口令——保护你的私密账和小金库不被本机上的其他人随手查看</p>
                     <div id="idlock-off" class="flex gap-2">
-                        <button id="idlock-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 active:opacity-80">开启切换锁</button>
+                        <button id="idlock-enable" class="flex-1 bg-indigo-600 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">开启切换锁</button>
                     </div>
                     <div id="idlock-on" class="hidden grid grid-cols-2 gap-2">
-                        <button id="idlock-change" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 active:opacity-80">修改口令</button>
-                        <button id="idlock-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 active:opacity-80">关闭切换锁</button>
+                        <button id="idlock-change" class="bg-slate-800 text-white text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">修改口令</button>
+                        <button id="idlock-disable" class="bg-slate-100 text-slate-700 text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">关闭切换锁</button>
                     </div>
                 </div>
 
@@ -406,7 +406,7 @@
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
                     <h2 class="font-semibold text-slate-800 mb-1">退出当前家庭</h2>
                     <p class="text-xs text-slate-400 mb-3">想重新建一个账本？先导出备份，再清空本机数据回到初始向导</p>
-                    <button id="btn-reset" class="w-full bg-red-50 text-red-600 text-sm rounded-xl py-2.5 active:opacity-80">清空数据，退出当前家庭…</button>
+                    <button id="btn-reset" class="w-full bg-red-50 text-red-600 text-sm rounded-xl py-2.5 min-h-[44px] active:opacity-80">清空数据，退出当前家庭…</button>
                 </div>
 
                 <!-- 关于 -->
@@ -612,7 +612,7 @@
                     <p class="text-xs text-slate-500 mb-1">邀请链接（含密钥，请勿发到公开场合）：</p>
                     <div class="flex gap-2 mb-3">
                         <input id="invite-link" readonly class="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-600">
-                        <button id="invite-copy" class="shrink-0 bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">复制</button>
+                        <button id="invite-copy" class="shrink-0 min-h-[44px] bg-indigo-600 text-white text-sm rounded-xl px-4 active:opacity-80">复制</button>
                     </div>
                     <p class="text-xs text-slate-500 mb-1">口头不方便发链接时，可让伴侣手动输入 8 位短码：</p>
                     <p id="invite-short" class="text-center text-2xl tracking-[0.4em] font-bold text-indigo-600 bg-indigo-50 rounded-xl py-3 mb-2"></p>
@@ -641,6 +641,23 @@
                         <button id="pair-join-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 active:opacity-80">取消</button>
                         <button id="pair-join-confirm" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 active:opacity-80">加入家庭</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统一错误弹层（v1.2 批次①） -->
+        <div id="error-mask" class="hidden fixed inset-0 z-[80] bg-slate-900/50 flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-5">
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl leading-none mt-0.5">⚠️</span>
+                    <div class="flex-1 min-w-0">
+                        <h2 id="error-title" class="font-semibold text-slate-800"></h2>
+                        <p id="error-message" class="text-sm text-slate-500 mt-1 leading-relaxed break-words"></p>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-4">
+                    <button id="error-retry" class="hidden flex-1 bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium min-h-[44px] active:opacity-80">重试</button>
+                    <button id="error-close" class="flex-1 bg-slate-100 text-slate-600 rounded-xl py-2.5 text-sm font-medium min-h-[44px] active:opacity-80">我知道了</button>
                 </div>
             </div>
         </div>
@@ -714,16 +731,17 @@
 
 <!-- Supabase 云服务（v1.1；加载失败不阻塞单机模式，cloud.available() 自动降级） -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="js/db.js?v=1.1.4"></script>
-<script src="js/cloud.js?v=1.1.4"></script>
-<script src="js/e2e.js?v=1.1.4"></script>
-<script src="js/crypto.js?v=1.1.4"></script>
-<script src="js/privacy.js?v=1.1.4"></script>
-<script src="js/ledger.js?v=1.1.4"></script>
-<script src="js/split.js?v=1.1.4"></script>
-<script src="js/dashboard.js?v=1.1.4"></script>
-<script src="js/settings.js?v=1.1.4"></script>
-<script src="js/sync.js?v=1.1.4"></script>
-<script src="js/app.js?v=1.1.4"></script>
+<script src="js/db.js?v=1.2.0"></script>
+<script src="js/ui.js?v=1.2.0"></script>
+<script src="js/cloud.js?v=1.2.0"></script>
+<script src="js/e2e.js?v=1.2.0"></script>
+<script src="js/crypto.js?v=1.2.0"></script>
+<script src="js/privacy.js?v=1.2.0"></script>
+<script src="js/ledger.js?v=1.2.0"></script>
+<script src="js/split.js?v=1.2.0"></script>
+<script src="js/dashboard.js?v=1.2.0"></script>
+<script src="js/settings.js?v=1.2.0"></script>
+<script src="js/sync.js?v=1.2.0"></script>
+<script src="js/app.js?v=1.2.0"></script>
 </body>
 </html>

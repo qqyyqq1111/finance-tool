@@ -205,23 +205,24 @@
     Object.keys(months).forEach(function (mk) {
       var mv = fcPrivacy.monthView(all, viewer, mk);
       mv.visible.forEach(function (t) {
-        if (t.privacyLevel !== 'vault') out.push(t);
+        if (t.privacy !== 'vault') out.push(t);
       });
     });
     return out;
   }
 
-  /** 近3个月 monthKeys（含当月，时间正序） */
-  function last3MonthKeys(today) {
+  /** 近3个月 monthKeys（含当月，时间正序）
+   * 注意 Date 月份 0 基：当月 0 基 = p[1]-1，再往前推2 → p[1]-3 */
+  V.last3MonthKeys = function (today) {
     var p = today.slice(0, 7).split('-').map(Number);
     var keys = [];
-    var d = new Date(p[0], p[1] - 2, 1);
+    var d = new Date(p[0], p[1] - 3, 1);
     for (var i = 0; i < 3; i++) {
       keys.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
       d.setMonth(d.getMonth() + 1);
     }
     return keys;
-  }
+  };
 
   /** 看板渲染 */
   V.render = function () {
@@ -251,8 +252,9 @@
       goal.milestones = chk.list;
       fcDb.saveSavingsGoal(goal);
       var idx = chk.newly[chk.newly.length - 1];
-      var amountLabel = (chk.list[idx].amount / 10000) % 1 === 0
-        ? (chk.list[idx].amount / 10000) + '万'
+      var wan = chk.list[idx].amount / 1000000; // 分→万元（1万元=1,000,000分）
+      var amountLabel = wan % 1 === 0
+        ? wan + '万'
         : fmtInt(chk.list[idx].amount);
       celebrate =
         '<div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex items-center gap-2 text-sm text-amber-700">' +
@@ -264,7 +266,7 @@
     var pct = V.progressPct(goal, saved);
     var monthsLeft = V.monthsCeil(today, goal.targetDate);
     var required = V.requiredMonthly(goal, saved, today);
-    var balances = V.balancesByMonths(txs, last3MonthKeys(today));
+    var balances = V.balancesByMonths(txs, V.last3MonthKeys(today));
     var avg = V.avgMonthlySurplus(balances);
     var assess = V.assessPlan({
       required: required,

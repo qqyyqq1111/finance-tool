@@ -14,6 +14,13 @@
 
   var TARGET_DEFAULT = 100000000; // 默认目标 100万元（单位：分）
   var DEFAULT_MILESTONE_YUAN = [100000, 300000, 500000, 800000, 1000000];
+  var IDLE_THRESHOLD_DEFAULT = 1000000; // 闲置资金默认阈值 1万元（分）
+  var PLANS = ['stable', 'target', 'aggressive'];
+  var PLAN_META = {
+    stable: { icon: '🟢', name: '稳健型', desc: '月均结余×80%，留弹性' },
+    target: { icon: '🔵', name: '目标型', desc: '刚好按期达成（默认）' },
+    aggressive: { icon: '🔴', name: '激进型', desc: '月均结余100%，全力攒' }
+  };
 
   /* ================= 纯函数（单测覆盖） ================= */
 
@@ -181,6 +188,173 @@
     return net;
   };
 
+  /* ---------- 旧数据兼容：补齐批次③增强字段 ---------- */
+  V.normalizeGoal = function (goal) {
+    if (!goal) return goal;
+    var g = {
+      targetAmount: goal.targetAmount,
+      targetDate: goal.targetDate,
+      startAmount: goal.startAmount,
+      startDate: goal.startDate,
+      milestones: goal.milestones || V.defaultMilestones()
+    };
+    g.idleThreshold = goal.idleThreshold != null ? goal.idleThreshold : IDLE_THRESHOLD_DEFAULT;
+    g.selectedPlan = PLANS.indexOf(goal.selectedPlan) >= 0 ? goal.selectedPlan : 'target';
+    g.idleDismissed = goal.idleDismissed || null; // {month:'YYYY-MM', closes:Number}
+    return g;
+  };
+
+  /** 在 YYYY-MM-DD 上加/减整月（日号超过目标月天数→月末） */
+  V.shiftMonths = function (dateStr, n) {
+    var p = dateStr.split('-').map(Number);
+    var total = (p[0] * 12 + (p[1] - 1)) + n;
+    var y = Math.floor(total / 12);
+    var m = total % 12;
+    var lastDay = new Date(y, m + 1, 0).getDate();
+    var d = Math.min(p[2], lastDay);
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  };
+
+  /** 各月收入合计（分；输入须已排除 vault） */
+  V.incomeByMonths = function (visibleTx, monthKeys) {
+    return monthKeys.map(function (mk) {
+      var sum = 0;
+      visibleTx.forEach(function (t) {
+        if (t.date.slice(0, 7) === mk && t.type === 'income') sum += t.amount;
+      });
+      return sum;
+    });
+  };
+
+  /** 月均收入：窗口内各月收入求平均（固定窗口口径，与 avgMonthlySurplus 对齐） */
+  V.avgMonthlyIncome = function (incomes) {
+    if (!incomes || !incomes.length) return 0;
+    var sum = incomes.reduce(function (a, b) { return a + b; }, 0);
+    return Math.round(sum / incomes.length);
+  };
+
+  /**
+   * 三种攒钱方案的"每月存多少"（分）
+   * stable=月均结余×80%；target=按期所需；aggressive=月均结余100%
+   */
+  V.planMonthly = function (plan, avg, required) {
+    if (plan === 'stable') return Math.round(avg * 0.8);
+    if (plan === 'aggressive') return avg;
+    return required;
+  };
+
+  /**
+   * 方案预计达成日期：从今天起按月存，ceil(剩余存款/月存) 个月后
+   * 已存够→today；月存≤0→null（无法预计）
+   */
+  V.planEtaDate = function (today, savedCents, targetCents, monthlyCents) {
+    var remain = targetCents - savedCents;
+    if (remain <= 0) return today;
+    if (!monthlyCents || monthlyCents <= 0) return null;
+    var months = Math.ceil(remain / monthlyCents);
+    return V.shiftMonths(today, months);
+  };
+
+  /** 储蓄率 0~1（月存/月均收入；收入≤0→null） */
+  V.savingRate = function (monthlyCents, avgIncome) {
+    if (!avgIncome || avgIncome <= 0) return null;
+    var r = monthlyCents / avgIncome;
+    if (r < 0) return 0;
+    if (r > 1) return 1;
+    return r;
+  };
+
+  /**
+   * 闲置资金判定
+   * @param {Object} p - balance 共同账户余额(分), threshold 阈值(分), dismissedMonth 本月已关闭, today
+   * @returns {{show:Boolean, idleAmount:Number}} idleAmount=超出阈值部分（分）
+   */
+  V.idleInfo = function (p) {
+    var idle = p.balance - p.threshold;
+    var month = p.today.slice(0, 7);
+    var show = idle > 0 && p.dismissedMonth !== month;
+    return { show: show, idleAmount: idle > 0 ? idle : 0 };
+  };
+
+  /** 关闭闲置提示 → 记录本月（本月不再出现） */
+  V.dismissIdle = function (month) {
+    return { month: month, closes: 1 };
+  };
+
+  /**
+   * 一键纳入：startAmount 增加 amount；并关闭本月闲置提示
+   * @returns {Object} 新 goal（未持久化）
+   */
+  V.includeIdle = function (goal, amountCents, month) {
+    var g = {};
+    Object.keys(goal).forEach(function (k) { g[k] = goal[k]; });
+    g.startAmount = goal.startAmount + amountCents;
+    g.idleDismissed = { month: month, closes: 1 };
+    return g;
+  };
+
+  /**
+   * 储蓄健康度等级（按储蓄率）
+   * rate=null→'unknown'（数据不足/无收入）
+   */
+  V.healthLevel = function (rate) {
+    if (rate == null) return 'unknown';
+    if (rate >= 0.3) return 'excellent';
+    if (rate >= 0.2) return 'good';
+    if (rate >= 0.1) return 'normal';
+    return 'poor';
+  };
+
+  /**
+   * 健康度详细拆解（纯函数；categories 用于 id→名称）
+   * @returns {{activeMonths:Number, monthBalances:Number[], incomeTotal, expenseTotal,
+   *           incomeParts:{name,amount}[], top3:{name,amount,pct}[]}}
+   */
+  V.healthBreakdown = function (visibleTx, monthKeys, categories) {
+    var catMap = {};
+    (categories || []).forEach(function (c) { catMap[c.id] = c.name; });
+    var catName = function (id) { return id ? (catMap[id] || '未分类') : '其他'; };
+
+    var monthBalances = V.balancesByMonths(visibleTx, monthKeys);
+    var activeMonths = monthKeys.filter(function (mk) {
+      return visibleTx.some(function (t) { return t.date.slice(0, 7) === mk; });
+    }).length;
+
+    var incomeByCat = {};
+    var expenseByCat = {};
+    var incomeTotal = 0;
+    var expenseTotal = 0;
+    visibleTx.forEach(function (t) {
+      var key = t.categoryId || '__none';
+      if (t.type === 'income') {
+        incomeByCat[key] = (incomeByCat[key] || 0) + t.amount;
+        incomeTotal += t.amount;
+      } else {
+        expenseByCat[key] = (expenseByCat[key] || 0) + t.amount;
+        expenseTotal += t.amount;
+      }
+    });
+
+    var toParts = function (map) {
+      return Object.keys(map).map(function (k) {
+        return { name: k === '__none' ? '其他' : catName(k), amount: map[k] };
+      }).sort(function (a, b) { return b.amount - a.amount; });
+    };
+
+    var top3 = toParts(expenseByCat).slice(0, 3).map(function (p) {
+      return { name: p.name, amount: p.amount, pct: expenseTotal ? p.amount / expenseTotal : 0 };
+    });
+
+    return {
+      activeMonths: activeMonths,
+      monthBalances: monthBalances,
+      incomeTotal: incomeTotal,
+      expenseTotal: expenseTotal,
+      incomeParts: toParts(incomeByCat),
+      top3: top3
+    };
+  };
+
   /* ================= UI ================= */
 
   function $(id) { return document.getElementById(id); }
@@ -228,7 +402,7 @@
   V.render = function () {
     var wrap = $('savings-card');
     if (!wrap) return;
-    var goal = fcDb.getSavingsGoal();
+    var goal = V.normalizeGoal(fcDb.getSavingsGoal());
     if (!goal) {
       wrap.innerHTML =
         '<div class="bg-white rounded-2xl border border-slate-200 border-dashed p-5 text-center">' +
@@ -246,6 +420,7 @@
     var saved = V.savedAmount(goal, netStart);
 
     // 里程碑：先判定 → 持久化新达成（本次渲染给庆祝块）
+    var anyReachedBefore = (goal.milestones || []).some(function (m) { return !!m.reachedAt; });
     var chk = V.checkMilestones(goal.milestones, saved, Date.now());
     var celebrate = '';
     if (chk.newly.length) {
@@ -259,15 +434,34 @@
       celebrate =
         '<div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex items-center gap-2 text-sm text-amber-700">' +
         '<span class="text-lg animate-bounce inline-block">🎉</span>' +
-        '<span>恭喜达成第一个 <b>' + amountLabel + '</b>！</span>' +
+        '<span>恭喜达成 <b>' + amountLabel + '</b> 里程碑！</span>' +
         '</div>';
+    }
+    // 首次达成（此前无任何里程碑记录）→ 全屏庆祝
+    var full = $('ms-full-celebrate');
+    if (full) {
+      if (chk.newly.length && !anyReachedBefore) {
+        $('msfc-amount').textContent = '¥' + fmtInt(chk.list[chk.newly[chk.newly.length - 1]].amount);
+        full.classList.remove('hidden');
+      } else {
+        full.classList.add('hidden');
+      }
     }
 
     var pct = V.progressPct(goal, saved);
     var monthsLeft = V.monthsCeil(today, goal.targetDate);
     var required = V.requiredMonthly(goal, saved, today);
-    var balances = V.balancesByMonths(txs, V.last3MonthKeys(today));
+
+    // 近3月窗口：结余 / 收入 / 活跃月
+    var keys3 = V.last3MonthKeys(today);
+    var balances = V.balancesByMonths(txs, keys3);
+    var incomes = V.incomeByMonths(txs, keys3);
+    var activeMonths = keys3.filter(function (mk) {
+      return txs.some(function (t) { return t.date.slice(0, 7) === mk; });
+    }).length;
     var avg = V.avgMonthlySurplus(balances);
+    var avgIncome = V.avgMonthlyIncome(incomes);
+
     var assess = V.assessPlan({
       required: required,
       avg: avg,
@@ -275,12 +469,62 @@
       totalRemain: Math.max(0, goal.targetAmount - saved)
     });
 
+    /* ---------- 三种攒钱方案 ---------- */
+    var planVal = V.planMonthly(goal.selectedPlan, avg, required);
+    var eta = V.planEtaDate(today, saved, goal.targetAmount, planVal);
+    var srate = V.savingRate(planVal, avgIncome);
+    var planBtns = PLANS.map(function (p) {
+      var on = p === goal.selectedPlan;
+      return '<button onclick="fcSavings.selectPlan(\'' + p + '\')" class="rounded-xl border px-1 py-2 text-center min-h-[44px] transition ' +
+        (on ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-500 active:bg-slate-50') + '">' +
+        '<span class="block text-sm leading-tight">' + PLAN_META[p].icon + ' ' + PLAN_META[p].name + '</span>' +
+        '<span class="block text-[9px] mt-0.5 leading-tight">' + PLAN_META[p].desc + '</span></button>';
+    }).join('');
+    var planDetail =
+      '<p class="text-slate-500">每月存 <b class="text-indigo-600 text-sm">¥' + fmtInt(planVal) + '</b></p>' +
+      '<p class="text-slate-500">预计 ' + (eta ? '<b class="text-slate-700">' + eta + '</b>' : '<span class="text-rose-500">按当前节奏无法预计</span>') + ' 达成</p>' +
+      '<p class="text-slate-500">储蓄率 ' + (srate != null ? '<b class="text-slate-700">' + (srate * 100).toFixed(0) + '%</b>' : '<span class="text-slate-400">—</span>') + '</p>';
+
+    /* ---------- 储蓄健康度 ---------- */
+    var rate = activeMonths < 3 ? null : (avgIncome > 0 ? avg / avgIncome : null);
+    var hlevel = V.healthLevel(rate);
+    var hCfg = {
+      excellent: ['bg-emerald-50', 'border-emerald-200', 'text-emerald-700', '💪 优秀', '攒钱能力很强，继续保持'],
+      good: ['bg-sky-50', 'border-sky-200', 'text-sky-700', '🙂 良好', '处于健康区间'],
+      normal: ['bg-orange-50', 'border-orange-200', 'text-orange-700', '😐 一般', '还有提升空间，试试减少非必要支出'],
+      poor: ['bg-rose-50', 'border-rose-200', 'text-rose-700', '⚠️ 需改进', '偏低，建议设定月度储蓄目标'],
+      unknown: ['bg-slate-50', 'border-slate-200', 'text-slate-500', '📊 待评估', '记账数据不足，继续记账后可评估']
+    }[hlevel];
+    var healthCard =
+      '<button onclick="fcSavings.openHealthSheet()" class="w-full mt-2 rounded-xl border px-3 py-2.5 flex items-center justify-between text-xs min-h-[44px] ' +
+      hCfg[0] + ' ' + hCfg[1] + ' ' + hCfg[2] + '">' +
+      '<span class="font-medium">' + hCfg[3] + (rate != null ? ' · 储蓄率 ' + (rate * 100).toFixed(0) + '%' : '') + '</span>' +
+      '<span class="opacity-80 text-[10px]">' + hCfg[4] + ' ›</span></button>';
+
+    /* ---------- 闲置资金 ---------- */
+    var balanceAll = V.netSince(txs, '0000');
+    var idle = V.idleInfo({
+      balance: balanceAll,
+      threshold: goal.idleThreshold,
+      dismissedMonth: goal.idleDismissed ? goal.idleDismissed.month : null,
+      today: today
+    });
+    var idleBar = idle.show
+      ? '<div class="mt-2 bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">' +
+        '<span class="text-xl shrink-0">💵</span>' +
+        '<p class="flex-1 text-xs text-amber-800 leading-snug">共同账户有 <b>¥' + fmtInt(idle.idleAmount) +
+        '</b> 闲置资金，纳入储蓄计划可加速进度</p>' +
+        '<button onclick="fcSavings.openIdleSheet()" class="shrink-0 bg-amber-500 text-white text-xs font-medium rounded-xl px-3 py-2 min-h-[44px] active:opacity-80">一键纳入</button>' +
+        '<button onclick="fcSavings.dismissIdleTip()" class="shrink-0 w-9 h-9 text-amber-400 text-base active:opacity-60" aria-label="关闭">×</button>' +
+        '</div>'
+      : '';
+
     // 进度环
     var R = 52;
     var C = 2 * Math.PI * R;
     var offset = C * (1 - pct);
 
-    // 测算文案
+    // 按期测算文案
     var tip = '';
     if (assess.level === 'good') {
       tip = required <= 0
@@ -318,10 +562,16 @@
       '<p class="text-slate-400">剩余 <span class="text-slate-700">' + V.humanRemain(today, goal.targetDate) + '</span></p>' +
       '<p class="text-slate-400">每月需存 <span class="text-indigo-600 font-semibold">¥' + fmtInt(required) + '</span></p>' +
       '</div></div>' +
+      '<div class="mt-3">' +
+      '<div class="grid grid-cols-3 gap-2">' + planBtns + '</div>' +
+      '<div class="mt-2 grid grid-cols-3 gap-1 text-[10px] text-center">' + planDetail + '</div>' +
+      '</div>' +
       '<div class="mt-3 rounded-xl border px-3 py-2.5 text-xs leading-relaxed ' + tipCls + '">' + tip + '</div>' +
+      healthCard +
       celebrate +
-      '<p class="text-[10px] text-slate-400 mt-2.5">口径：家庭共同储蓄，不含双方小金库；月均结余取近3个月（数据不足按实际月份）</p>' +
-      '</div>';
+      '<p class="text-[10px] text-slate-400 mt-2.5">口径：家庭共同储蓄，不含双方小金库；月均取近3个月（数据不足按实际月份）</p>' +
+      '</div>' +
+      idleBar;
   };
 
   /* ---------------- 编辑目标弹层 ---------------- */
@@ -330,17 +580,18 @@
 
   V.openGoalSheet = function () {
     var today = new Date().toISOString().slice(0, 10);
-    var goal = fcDb.getSavingsGoal();
+    var goal = V.normalizeGoal(fcDb.getSavingsGoal());
     if (!goal) {
       // 首次：起始金额默认=当前家庭共同结余（当前可见口径，不含小金库）
       var netNow = V.netSince(visibleNonVault(), '0000');
-      goal = V.createGoal(today, Math.max(0, netNow));
+      goal = V.normalizeGoal(V.createGoal(today, Math.max(0, netNow)));
     }
     editingGoal = goal;
     $('sg-amount').value = (goal.targetAmount / 100).toString();
     $('sg-date').value = goal.targetDate;
     $('sg-start').value = (goal.startAmount / 100).toString();
     $('sg-startdate').value = goal.startDate;
+    $('sg-idle').value = (goal.idleThreshold / 100).toString();
     $('sg-err').textContent = '';
     renderMilestoneEditor(goal.milestones);
     $('goal-sheet').classList.remove('hidden');
@@ -390,10 +641,12 @@
     var err = $('sg-err');
     var amountYuan = Number($('sg-amount').value);
     var startYuan = Number($('sg-start').value);
+    var idleYuan = Number($('sg-idle').value);
     var date = $('sg-date').value;
     var startDate = $('sg-startdate').value;
     if (!amountYuan || amountYuan <= 0) { err.textContent = '请输入有效的目标金额'; return; }
     if (startYuan < 0) { err.textContent = '起始金额不能为负'; return; }
+    if (idleYuan < 0) { err.textContent = '闲置阈值不能为负'; return; }
     if (!date) { err.textContent = '请选择目标日期'; return; }
     if (!startDate) { err.textContent = '请选择起始日期'; return; }
     var goal = {
@@ -401,13 +654,129 @@
       targetDate: date,
       startAmount: Math.round(startYuan * 100),
       startDate: startDate,
-      milestones: editingGoal.milestones
+      milestones: editingGoal.milestones,
+      idleThreshold: Math.round((idleYuan || 0) * 100),
+      selectedPlan: editingGoal.selectedPlan,
+      idleDismissed: editingGoal.idleDismissed
     };
     var r = fcDb.saveSavingsGoal(goal);
     if (!r.ok) { err.textContent = r.errors[0]; return; }
     V.closeGoalSheet();
     global.toast('储蓄目标已保存', 'success');
     global.renderAll();
+  };
+
+  /* ---------------- 方案切换 ---------------- */
+
+  V.selectPlan = function (plan) {
+    var g = V.normalizeGoal(fcDb.getSavingsGoal());
+    if (!g || PLANS.indexOf(plan) < 0) return;
+    g.selectedPlan = plan;
+    fcDb.saveSavingsGoal(g);
+    V.render();
+  };
+
+  /* ---------------- 闲置资金：一键纳入 ---------------- */
+
+  function currentIdle() {
+    var g = V.normalizeGoal(fcDb.getSavingsGoal());
+    var today = new Date().toISOString().slice(0, 10);
+    var balance = V.netSince(visibleNonVault(), '0000');
+    var idle = V.idleInfo({
+      balance: balance,
+      threshold: g.idleThreshold,
+      dismissedMonth: g.idleDismissed ? g.idleDismissed.month : null,
+      today: today
+    });
+    return { g: g, today: today, idle: idle };
+  }
+
+  V.openIdleSheet = function () {
+    var c = currentIdle();
+    if (!c.idle.idleAmount) return;
+    $('il-amount').value = (c.idle.idleAmount / 100).toString();
+    $('il-err').textContent = '';
+    $('idle-sheet').classList.remove('hidden');
+  };
+
+  V.closeIdleSheet = function () { $('idle-sheet').classList.add('hidden'); };
+
+  V.confirmInclude = function () {
+    var err = $('il-err');
+    var yuan = Number($('il-amount').value);
+    if (!yuan || yuan <= 0) { err.textContent = '请输入大于0的金额'; return; }
+    var amount = Math.round(yuan * 100);
+    var c = currentIdle();
+    if (amount > c.idle.idleAmount) {
+      err.textContent = '不能超过闲置资金 ¥' + fmtInt(c.idle.idleAmount);
+      return;
+    }
+    var ng = V.includeIdle(c.g, amount, c.today.slice(0, 7));
+    var r = fcDb.saveSavingsGoal(ng);
+    if (!r.ok) { err.textContent = r.errors[0]; return; }
+    V.closeIdleSheet();
+    global.toast('已纳入 ¥' + fmtInt(amount) + '，继续加油', 'success');
+    global.renderAll();
+  };
+
+  V.dismissIdleTip = function () {
+    var g = V.normalizeGoal(fcDb.getSavingsGoal());
+    var month = new Date().toISOString().slice(0, 7);
+    g.idleDismissed = V.dismissIdle(month);
+    fcDb.saveSavingsGoal(g);
+    V.render();
+  };
+
+  /* ---------------- 健康度拆解弹层 ---------------- */
+
+  V.openHealthSheet = function () {
+    var today = new Date().toISOString().slice(0, 10);
+    var keys3 = V.last3MonthKeys(today);
+    var bd = V.healthBreakdown(visibleNonVault(), keys3, fcDb.categoriesList());
+
+    function barRows(parts, total, color) {
+      if (!parts.length) return '<p class="text-xs text-slate-400 py-2">暂无数据</p>';
+      return parts.map(function (p) {
+        var pctW = total ? Math.round(p.amount / total * 100) : 0;
+        return '<div class="mb-2">' +
+          '<div class="flex justify-between text-xs text-slate-600 mb-1"><span>' + p.name + '</span>' +
+          '<span class="text-slate-400">¥' + fmtInt(p.amount) + ' · ' + pctW + '%</span></div>' +
+          '<div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full rounded-full ' + color +
+          '" style="width:' + pctW + '%"></div></div></div>';
+      }).join('');
+    }
+
+    var maxAbs = Math.max.apply(null, bd.monthBalances.map(Math.abs).concat([1]));
+    var trend = bd.monthBalances.map(function (b, i) {
+      var h = Math.round(Math.abs(b) / maxAbs * 40) + 2;
+      var col = b >= 0 ? 'bg-emerald-400' : 'bg-rose-400';
+      return '<div class="flex-1 flex flex-col items-center justify-end gap-1">' +
+        '<span class="text-[9px] text-slate-500">' + (b >= 0 ? '' : '-') + Math.round(Math.abs(b) / 100) + '</span>' +
+        '<div class="' + col + ' rounded-t w-7" style="height:' + h + 'px"></div>' +
+        '<span class="text-[9px] text-slate-400">' + keys3[i].slice(5) + '月</span></div>';
+    }).join('');
+
+    $('health-sheet-body').innerHTML =
+      '<p class="text-[11px] text-slate-400 mb-3">近3个月口径：已记账 ' + bd.activeMonths + ' 个月' +
+      '（不足3个月时等级为"待评估"）</p>' +
+      '<h4 class="text-xs font-semibold text-slate-700 mb-2">💰 收入构成</h4>' +
+      barRows(bd.incomeParts, bd.incomeTotal, 'bg-emerald-400') +
+      '<h4 class="text-xs font-semibold text-slate-700 mb-2 mt-4">💸 支出 Top3</h4>' +
+      barRows(bd.top3, bd.expenseTotal, 'bg-rose-400') +
+      '<h4 class="text-xs font-semibold text-slate-700 mb-2 mt-4">📈 近3个月结余（元）</h4>' +
+      '<div class="flex items-end gap-2 h-20 border-b border-slate-100">' + trend + '</div>' +
+      '<p class="text-[10px] text-slate-400 mt-3">口径不含双方小金库；金额单位元</p>';
+
+    $('health-sheet').classList.remove('hidden');
+  };
+
+  V.closeHealthSheet = function () { $('health-sheet').classList.add('hidden'); };
+
+  /* ---------------- 全屏庆祝关闭 ---------------- */
+
+  V.closeFullCelebrate = function () {
+    var el = $('ms-full-celebrate');
+    if (el) el.classList.add('hidden');
   };
 
   /* ---------------- 装配 ---------------- */
@@ -417,6 +786,12 @@
     $('sg-cancel').addEventListener('click', V.closeGoalSheet);
     $('sg-save').addEventListener('click', V.saveGoal);
     $('sg-add-ms').addEventListener('click', V.addMilestoneRow);
+    $('idle-sheet-mask').addEventListener('click', V.closeIdleSheet);
+    $('il-cancel').addEventListener('click', V.closeIdleSheet);
+    $('il-confirm').addEventListener('click', V.confirmInclude);
+    $('health-sheet-mask').addEventListener('click', V.closeHealthSheet);
+    $('hs-close').addEventListener('click', V.closeHealthSheet);
+    $('msfc-close').addEventListener('click', V.closeFullCelebrate);
   };
 
   global.fcSavings = V;

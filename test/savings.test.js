@@ -147,6 +147,115 @@ eq('起始日后净结余', V.netSince(txs, '2026-09-01'), 190000);
 eq('很早日期=全部', V.netSince(txs, '2000-01-01'), 250000);
 eq('很晚日期=0', V.netSince(txs, '2027-01-01'), 0);
 
+/* ---------- 14. normalizeGoal（旧数据兼容） ---------- */
+var legacy = {
+  targetAmount: 100000000, targetDate: '2029-10-04',
+  startAmount: 50000, startDate: '2026-10-04', milestones: []
+};
+var ng = V.normalizeGoal(legacy);
+eq('旧数据补闲置阈值1万元', ng.idleThreshold, 1000000);
+eq('旧数据默认目标型', ng.selectedPlan, 'target');
+eq('旧数据idleDismissed=null', ng.idleDismissed, null);
+eq('原字段保留', ng.targetAmount, 100000000);
+var ng2 = V.normalizeGoal({
+  targetAmount: 1, targetDate: '2027-01-01', startAmount: 0, startDate: '2026-01-01',
+  selectedPlan: 'bad', idleThreshold: 500000
+});
+eq('非法方案回退target', ng2.selectedPlan, 'target');
+eq('自定义阈值保留', ng2.idleThreshold, 500000);
+eq('里程碑缺失补默认', V.normalizeGoal({
+  targetAmount: 1, targetDate: 'x', startAmount: 0, startDate: 'x'
+}).milestones.length, 5);
+
+/* ---------- 15. shiftMonths ---------- */
+eq('次月同日', V.shiftMonths('2026-10-04', 1), '2026-11-04');
+eq('跨3月', V.shiftMonths('2026-10-04', 3), '2027-01-04');
+eq('1月末+1月→2/28', V.shiftMonths('2026-01-31', 1), '2026-02-28');
+eq('减1月', V.shiftMonths('2026-10-04', -1), '2026-09-04');
+eq('3月末+1月→4/30', V.shiftMonths('2026-03-31', 1), '2026-04-30');
+
+/* ---------- 16. incomeByMonths / avgMonthlyIncome ---------- */
+var txsI = [
+  { date: '2026-11-05', type: 'income', amount: 300000 },
+  { date: '2026-11-20', type: 'income', amount: 100000 },
+  { date: '2026-12-10', type: 'income', amount: 200000 }
+];
+eq('各月收入合计', V.incomeByMonths(txsI, ['2026-11', '2026-12']), [400000, 200000]);
+eq('月均收入', V.avgMonthlyIncome([400000, 200000]), 300000);
+eq('空窗口=0', V.avgMonthlyIncome([]), 0);
+
+/* ---------- 17. planMonthly 三方案 ---------- */
+eq('稳健型=结余×80%', V.planMonthly('stable', 5000000, 2638900), 4000000);
+eq('目标型=按期所需', V.planMonthly('target', 5000000, 2638900), 2638900);
+eq('激进型=结余100%', V.planMonthly('aggressive', 5000000, 2638900), 5000000);
+
+/* ---------- 18. planEtaDate ---------- */
+eq('月存5万19个月后', V.planEtaDate('2026-10-04', 5000000, 100000000, 5000000), '2028-05-04');
+eq('月存0无法预计', V.planEtaDate('2026-10-04', 5000000, 100000000, 0), null);
+eq('已存够=今天', V.planEtaDate('2026-10-04', 100000000, 100000000, 5000000), '2026-10-04');
+
+/* ---------- 19. savingRate ---------- */
+eq('储蓄率0.3', V.savingRate(300000, 1000000), 0.3);
+eq('无收入=null', V.savingRate(300000, 0), null);
+eq('超过1钳为1', V.savingRate(2000000, 1000000), 1);
+
+/* ---------- 20. idleInfo / dismissIdle / includeIdle ---------- */
+eq('超阈值显示', V.idleInfo({
+  balance: 1100000, threshold: 1000000, dismissedMonth: null, today: '2026-10-04'
+}), { show: true, idleAmount: 100000 });
+eq('未超阈值不显示', V.idleInfo({
+  balance: 500000, threshold: 1000000, dismissedMonth: null, today: '2026-10-04'
+}), { show: false, idleAmount: 0 });
+eq('本月已关闭不显示', V.idleInfo({
+  balance: 1100000, threshold: 1000000, dismissedMonth: '2026-10', today: '2026-10-04'
+}), { show: false, idleAmount: 100000 });
+eq('上月关闭本月显示', V.idleInfo({
+  balance: 1100000, threshold: 1000000, dismissedMonth: '2026-09', today: '2026-10-04'
+}).show, true);
+eq('dismissIdle结构', V.dismissIdle('2026-10'), { month: '2026-10', closes: 1 });
+var baseG = {
+  targetAmount: 100000000, targetDate: '2029-10-04', startAmount: 1000,
+  startDate: '2026-10-04', milestones: [], idleThreshold: 1000000,
+  selectedPlan: 'target', idleDismissed: null
+};
+var incG = V.includeIdle(baseG, 500000, '2026-10');
+eq('纳入后起始金额增加', incG.startAmount, 501000);
+eq('纳入后关闭本月提示', incG.idleDismissed.month, '2026-10');
+check('纳入不改原goal', baseG.startAmount === 1000);
+
+/* ---------- 21. healthLevel ---------- */
+eq('35%优秀', V.healthLevel(0.35), 'excellent');
+eq('30%优秀边界', V.healthLevel(0.3), 'excellent');
+eq('25%良好', V.healthLevel(0.25), 'good');
+eq('15%一般', V.healthLevel(0.15), 'normal');
+eq('5%需改进', V.healthLevel(0.05), 'poor');
+eq('null待评估', V.healthLevel(null), 'unknown');
+
+/* ---------- 22. healthBreakdown ---------- */
+var txsH = [
+  { date: '2026-10-01', type: 'income', amount: 1000000, categoryId: 'cat_salary' },
+  { date: '2026-10-02', type: 'expense', amount: 300000, categoryId: 'cat_food' },
+  { date: '2026-09-15', type: 'expense', amount: 200000, categoryId: 'cat_food' },
+  { date: '2026-08-10', type: 'expense', amount: 50000, categoryId: null }
+];
+var catsH = [
+  { id: 'cat_salary', name: '工资' },
+  { id: 'cat_food', name: '餐饮' }
+];
+var bd = V.healthBreakdown(txsH, ['2026-08', '2026-09', '2026-10'], catsH);
+eq('活跃月=3', bd.activeMonths, 3);
+eq('三月结余序列', bd.monthBalances, [-50000, -200000, 700000]);
+eq('收入合计', bd.incomeTotal, 1000000);
+eq('支出合计', bd.expenseTotal, 550000);
+eq('收入构成首项工资', bd.incomeParts[0], { name: '工资', amount: 1000000 });
+eq('支出Top3长度2', bd.top3.length, 2);
+eq('Top1餐饮金额', bd.top3[0].amount, 500000);
+eq('Top1名称', bd.top3[0].name, '餐饮');
+check('Top1占比≈90.9%', Math.abs(bd.top3[0].pct - 0.9091) < 0.001);
+eq('Top2其他(null分类)', bd.top3[1].name, '其他');
+var bd2 = V.healthBreakdown(txsH, ['2026-05', '2026-06', '2026-07'], catsH);
+eq('无账活跃月=0', bd2.activeMonths, 0);
+
 /* ---------- 汇总 ---------- */
 console.log('\n储蓄目标测试：' + passed + ' 项通过，' + failed + ' 项失败');
 process.exit(failed ? 1 : 0);

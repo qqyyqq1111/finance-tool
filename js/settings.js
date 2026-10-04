@@ -17,6 +17,11 @@
     if (!me) return;
     document.getElementById('viewer-emoji').textContent = me.emoji;
     document.getElementById('viewer-name').textContent = me.name;
+    // F16：视角锁定时 chip 置灰（仍保留点击，点击时 toast 引导去设置页解锁）
+    var chip = document.getElementById('viewer-chip');
+    var vLocked = S.isViewLocked();
+    chip.classList.toggle('opacity-50', vLocked);
+    chip.classList.toggle('cursor-not-allowed', vLocked);
   };
 
   /** 设置页「双人身份」卡片（点击切换身份；铅笔编辑资料） */
@@ -158,19 +163,35 @@
     return s && s.identityLock && s.identityLock.enabled ? s.identityLock : null;
   }
 
-  /** 所有"切换身份"入口统一走这里：免费版拦截；开锁未验证 → 要 PIN */
+  /**
+   * 所有"切换身份"入口统一走这里：
+   * 点自己 → 关弹层；免费版拦截；F16 视角锁拦截；
+   * 身份切换锁未验证 → 要 PIN；PIN 通过/无锁 → proceedSwitch（隐私提示弹窗）
+   */
   S.requestSwitch = function (memberId) {
     var cur = fcDb.getCurrentViewer();
     if (memberId === cur) { S.closeViewerSheet(); return; } // 点自己=关弹层
     var s = fcDb.getSettings();
     if (s.tier === 'free') { global.toast('切换身份是家庭会员功能（版本模式中可切换演示）'); return; }
+    // F16：视角已锁定 → 任何切换入口一律拦截，解锁只能到设置页
+    if (S.isViewLocked()) {
+      global.toast('视角已锁定，如需切换请先到设置页解锁');
+      S.closeViewerSheet();
+      return;
+    }
     var lock = identityLock();
     if (lock && !pinVerified) {
       pinPendingMember = memberId;
       S.openPinSheet('verify');
       return;
     }
-    S.switchViewer(memberId);
+    S.proceedSwitch(memberId);
+  };
+
+  /** PIN 通过后（或无 PIN）的切换：按"切换隐私提示"设置决定弹窗或直接切 */
+  S.proceedSwitch = function (memberId) {
+    if (S.isSwitchHintOff()) S.switchViewer(memberId);
+    else S.openSwitchConfirm(memberId);
   };
 
   S.renderIdentityLock = function () {
@@ -191,13 +212,15 @@
       verify: '验证身份锁',
       set: '设置切换口令',
       'change-old': '修改口令 · 先验证旧口令',
-      disable: '关闭身份锁'
+      disable: '关闭身份锁',
+      'unlock-view': '解锁视角'
     };
     document.getElementById('pin-title').textContent = titles[pinMode];
     document.getElementById('pin-hint').textContent =
       pinMode === 'verify' ? '切换到其他成员视角需要输入切换口令' :
       pinMode === 'set' ? '6 位数字；之后任何人在本机切换身份都需输入（请双方共同保管）' :
       pinMode === 'change-old' ? '输入当前口令，验证后设置新口令' :
+      pinMode === 'unlock-view' ? '输入身份切换口令，验证后解除视角锁定' :
       '输入口令确认关闭（关闭后可自由切换身份）';
     document.getElementById('pin-input').value = '';
     document.getElementById('pin-input2').value = '';
@@ -242,7 +265,15 @@
         pinVerified = true;
         var target = pinPendingMember;
         S.closePinSheet();
-        if (target) S.switchViewer(target);
+        if (target) S.proceedSwitch(target); // 继续走隐私提示弹窗判断
+        return;
+      }
+      if (pinMode === 'unlock-view') {
+        S.setViewLock(false);
+        S.closePinSheet();
+        global.toast('视角已解锁，可以切换了');
+        S.renderViewLockCard();
+        S.renderViewerChip();
         return;
       }
       if (pinMode === 'disable') {
@@ -261,6 +292,115 @@
         return;
       }
     });
+  };
+
+  /* ---------------- F16 视角锁定 + 切换隐私提示（v1.2 批次②） ----------------
+   * 存储红线：两项均为"本机偏好"，独立 localStorage key，不进 settings、不上云，
+   * 两端各自独立。系统级切换（登录/配对恢复）直连 db.switchViewer，不受拦截。 */
+
+  var LS_VIEW_LOCK = 'fc_view_lock';      // {locked:true, at}
+  var LS_SWITCH_HINT = 'fc_switch_hint_off'; // '1'=不再提示
+  var scPending = null;                    // 待确认的切换目标
+
+  /** 解析视角锁原始存储（纯函数：损坏/缺省均安全回退为未锁定） */
+  S.parseViewLock = function (raw) {
+    if (!raw) return { locked: false };
+    try {
+      var o = JSON.parse(raw);
+      return { locked: !!(o && o.locked) };
+    } catch (e) { return { locked: false }; }
+  };
+
+  /** 视角锁状态下能否切到目标（纯函数；切到自己视为允许） */
+  S.canSwitchTo = function (lockState, targetId, currentId) {
+    if (!lockState || !lockState.locked) return { ok: true };
+    if (targetId === currentId) return { ok: true, same: true };
+    return { ok: false, reason: 'locked' };
+  };
+
+  S.isViewLocked = function () {
+    return S.parseViewLock(localStorage.getItem(LS_VIEW_LOCK)).locked;
+  };
+
+  S.setViewLock = function (on) {
+    if (on) localStorage.setItem(LS_VIEW_LOCK, JSON.stringify({ locked: true, at: Date.now() }));
+    else localStorage.removeItem(LS_VIEW_LOCK);
+  };
+
+  S.isSwitchHintOff = function () {
+    return localStorage.getItem(LS_SWITCH_HINT) === '1';
+  };
+
+  S.setSwitchHintOff = function (off) {
+    if (off) localStorage.setItem(LS_SWITCH_HINT, '1');
+    else localStorage.removeItem(LS_SWITCH_HINT);
+  };
+
+  /** 视角锁定开关按钮：锁定即生效；解锁必须先有身份切换口令并验证 */
+  S.onViewLockToggle = function () {
+    if (!S.isViewLocked()) {
+      S.setViewLock(true);
+      global.toast('已锁定当前视角', 'success');
+      S.renderViewLockCard();
+      S.renderViewerChip();
+      return;
+    }
+    if (!identityLock()) {
+      global.toast('请先在上方设置身份切换口令，再解锁视角');
+      return;
+    }
+    S.openPinSheet('unlock-view');
+  };
+
+  /** 切换隐私提示开关按钮（设置页） */
+  S.onSwitchHintToggle = function () {
+    var nextOff = !S.isSwitchHintOff();
+    S.setSwitchHintOff(nextOff);
+    global.toast(nextOff ? '已关闭切换时隐私提示' : '已开启切换时隐私提示', 'success');
+    S.renderViewLockCard();
+  };
+
+  /** 渲染视角锁定卡 + 切换提示卡（按钮态/状态标） */
+  S.renderViewLockCard = function () {
+    var locked = S.isViewLocked();
+    var btn = document.getElementById('viewlock-toggle');
+    var badge = document.getElementById('viewlock-status');
+    if (!btn) return;
+    btn.textContent = locked ? '解锁（需身份切换口令）' : '锁定当前视角';
+    btn.className = 'w-full text-sm rounded-xl py-2.5 min-h-[44px] font-medium active:opacity-80 ' +
+      (locked ? 'bg-slate-100 text-slate-700' : 'bg-indigo-600 text-white');
+    badge.textContent = locked ? '已锁定' : '未锁定';
+    badge.className = 'text-[10px] font-normal ml-1 ' + (locked ? 'text-indigo-500' : 'text-slate-400');
+
+    var hintOff = S.isSwitchHintOff();
+    var hbtn = document.getElementById('switch-hint-toggle');
+    hbtn.textContent = hintOff ? '重新开启提示' : '已开启提示';
+    hbtn.className = 'w-full text-sm rounded-xl py-2.5 min-h-[44px] font-medium active:opacity-80 ' +
+      (hintOff ? 'bg-slate-800 text-white' : 'bg-indigo-600 text-white');
+  };
+
+  /* ---- 切换视角隐私确认弹层 ---- */
+
+  S.openSwitchConfirm = function (memberId) {
+    var m = fcDb.findMember(memberId);
+    document.getElementById('sc-name').textContent = m ? m.name : '';
+    document.getElementById('sc-nomore').checked = false;
+    scPending = memberId;
+    document.getElementById('switch-confirm').classList.remove('hidden');
+  };
+
+  S.closeSwitchConfirm = function () {
+    document.getElementById('switch-confirm').classList.add('hidden');
+    scPending = null;
+  };
+
+  S.confirmSwitch = function () {
+    var target = scPending;
+    var nomore = document.getElementById('sc-nomore').checked;
+    S.closeSwitchConfirm();
+    if (nomore) S.setSwitchHintOff(true);
+    S.renderViewLockCard();
+    if (target) S.switchViewer(target);
   };
 
   /* ---------------- 数据备份（07-PRD §8） ---------------- */
@@ -489,7 +629,11 @@
   /* ---------------- 装配 ---------------- */
 
   S.bind = function () {
-    document.getElementById('viewer-chip').addEventListener('click', S.openViewerSheet);
+    document.getElementById('viewer-chip').addEventListener('click', function () {
+      // F16：视角锁定时不打开切换弹层，toast 引导解锁
+      if (S.isViewLocked()) { global.toast('视角已锁定，如需切换请先到设置页解锁'); return; }
+      S.openViewerSheet();
+    });
     document.getElementById('viewer-sheet-mask').addEventListener('click', S.closeViewerSheet);
     document.getElementById('btn-export').addEventListener('click', S.exportJson);
     document.getElementById('file-import').addEventListener('change', function (e) {
@@ -548,6 +692,13 @@
     document.getElementById('crypto-sheet-mask').addEventListener('click', S.closeCryptoSheet);
     document.getElementById('crypto-cancel').addEventListener('click', S.closeCryptoSheet);
     document.getElementById('crypto-confirm').addEventListener('click', S.confirmCryptoSheet);
+
+    // F16 视角锁定 + 切换隐私提示（v1.2 批次②）
+    document.getElementById('viewlock-toggle').addEventListener('click', S.onViewLockToggle);
+    document.getElementById('switch-hint-toggle').addEventListener('click', S.onSwitchHintToggle);
+    document.getElementById('switch-confirm-mask').addEventListener('click', S.closeSwitchConfirm);
+    document.getElementById('sc-cancel').addEventListener('click', S.closeSwitchConfirm);
+    document.getElementById('sc-ok').addEventListener('click', S.confirmSwitch);
 
     bindCloud(); // v1.1 云同步（批次⑥）
   };

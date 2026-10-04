@@ -313,6 +313,7 @@
     if (!isFamily) form.privacy = 'public'; // 免费版锁定 public（07-PRD §9）
     $('f-title').textContent = '记一笔';
     $('f-save').textContent = '保存';
+    $('f-save').disabled = false;
     $('f-amount').value = '';
     $('f-note').value = '';
     $('f-date').value = today();
@@ -339,6 +340,7 @@
     };
     $('f-title').textContent = '编辑账目';
     $('f-save').textContent = '保存修改';
+    $('f-save').disabled = false;
     $('f-amount').value = (t.amount / 100).toFixed(2);
     $('f-note').value = t.note || '';
     $('f-date').value = t.date;
@@ -349,6 +351,9 @@
   };
 
   function saveFromForm() {
+    // v1.1.3：防重复提交（快速连点/双击时第二笔会以新 id 落库，同步后对方数据翻倍）
+    var saveBtn = $('f-save');
+    if (saveBtn.disabled) return;
     var amountYuan = parseFloat($('f-amount').value);
     if (!(amountYuan > 0)) { global.toast('请输入正确的金额'); return; }
     if (!form.categoryId) { global.toast('请选择分类'); return; }
@@ -370,8 +375,9 @@
       note: $('f-note').value.trim()
     };
     if (form.privacy === 'vault') data.vaultId = fcDb.getVaultOf(form.ownerId).id;
+    saveBtn.disabled = true; // 校验通过立即禁用；newEntry/loadForEdit 时重新启用
     var r = form.editingId ? fcDb.tx.update(form.editingId, data) : fcDb.tx.add(data);
-    if (!r.ok) { global.toast(r.errors[0]); return; }
+    if (!r.ok) { saveBtn.disabled = false; global.toast(r.errors[0]); return; }
     highlightId = form.editingId || r.record.id;
     global.toast(form.editingId ? '✓ 修改已保存' : '✓ 记好啦，已在明细列表中', 'success');
     var wasEdit = !!form.editingId;

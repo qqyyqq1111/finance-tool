@@ -85,6 +85,34 @@
   };
 
   /**
+   * settings 上云白名单（v1.1.3：家庭级共享设置才同步）
+   * 本机态绝不上云：currentViewer（各看各的）、tier（版本模式演示）、encryptionEnabled（本机口令）
+   */
+  var SETTINGS_CLOUD_FIELDS = ['familyName', 'members', 'splitRule'];
+
+  /** 纯函数：构造 settings 的上云载荷（只含家庭共享字段+同步元数据，entity_id 固定 'settings'） */
+  S.sanitizeSettingsForCloud = function (s) {
+    var out = { id: 'settings' };
+    SETTINGS_CLOUD_FIELDS.forEach(function (k) {
+      if (s[k] !== undefined) out[k] = s[k];
+    });
+    ['updatedAt', 'deviceId', 'deleted'].forEach(function (k) {
+      if (s[k] !== undefined) out[k] = s[k];
+    });
+    out._sync = 'clean';
+    return out;
+  };
+
+  /** 纯函数：计算待推记录的云端 entity_id 与明文载荷（settings 固定 id + 白名单消毒；墓碑空壳） */
+  S.buildPushPayload = function (item) {
+    if (item.tombstone) return { id: item.rec.entityId, payload: '{}' };
+    if (item.entityType === 'settings') {
+      return { id: 'settings', payload: JSON.stringify(S.sanitizeSettingsForCloud(item.rec)) };
+    }
+    return { id: item.rec.id, payload: JSON.stringify(item.rec) };
+  };
+
+  /**
    * 构造对方私密账的本地占位记录（纯函数）
    * 行上明文 meta={d:日期,m:身份位}；金额/分类/备注不包含（在对方 personalKey 密文里）
    * @param {Object} row - family_docs 行（含 meta/updated_at/device_id/entity_id）
@@ -137,9 +165,11 @@
         }
       });
     });
-    // settings 特殊：整体一条记录
+    // settings 特殊：整体一条记录。
+    // 未完成首次云端采纳（_cloudAdopted）前禁止上推——新加入者/换机恢复者的本机设置
+    // 时间戳更新，先推会反向覆盖家庭名；首次 pull 采纳家庭设置后才允许推自己的改动。
     var settings = db._cryptoBridge.rawRead('settings');
-    if (settings && settings._sync === 'dirty') {
+    if (settings && settings._sync === 'dirty' && settings._cloudAdopted === true) {
       result.push({
         entityType: 'settings',
         entity: 'settings',
@@ -205,6 +235,15 @@
     var db = getDb();
     if (!db) return Promise.resolve({ ok: false, errors: ['数据层未就绪'] });
 
+    // v1.1.3 升级兜底：旧版本（≤v1.1.2）settings 从未上云、本地也无采纳标记；
+    // m1 创建者补打权威标记并置 dirty 补推一次，m2 在 pull 收到后走首次采纳，避免死锁。
+    var legacySettings = db._cryptoBridge.rawRead('settings');
+    if (legacySettings && legacySettings._cloudAdopted === undefined && keys.memberId === 'm1') {
+      legacySettings._cloudAdopted = true;
+      legacySettings._sync = 'dirty';
+      db._cryptoBridge.rawWrite('settings', legacySettings);
+    }
+
     var dirty = S.scanDirty(db);
     if (!dirty.length) return Promise.resolve({ ok: true, pushed: 0, errors: [] });
 
@@ -217,11 +256,13 @@
       var ops = dirty.map(function (item) {
         var rec = item.rec;
         var route = item.route;
-        var recId = item.tombstone ? rec.entityId : rec.id;
+        // settings 整体一行，固定 entity_id='settings'（rec.id 原本为 undefined 导致设置从未上云）；
+        // settings 只推家庭共享字段（白名单），currentViewer/tier/口令留在本机；墓碑加密空壳
+        var pp = S.buildPushPayload(item);
+        var recId = pp.id;
         var isDeleted = !!(item.tombstone || rec.deleted);
         var keyB64 = route.encKey === 'family' ? keys.familyKey : keys.personalKey;
-        // 墓碑内容 pull 端不会解密（墓碑优先），加密空壳满足 not-null 约束即可
-        var payload = item.tombstone ? '{}' : JSON.stringify(rec);
+        var payload = pp.payload;
 
         return getE2E().encryptText(payload, keyB64).then(function (encPayload) {
           if (route.table === 'family_docs') {
@@ -349,6 +390,16 @@
             var remote = JSON.parse(json);
             remote._sync = 'clean';
             var local = findLocalRecord(db, row.entity_type, row.entity_id);
+            // settings 首次上云采纳：新加入者本机向导设置时间戳更新，LWW 会反向覆盖家庭名；
+            // 未标记 _cloudAdopted 时无条件采纳家庭共享字段（家庭名/成员资料/分摊规则）
+            if (row.entity_type === 'settings' && local && !local._cloudAdopted) {
+              upsertLocalRecord(db, 'settings', remote);
+              var adopted = db._cryptoBridge.rawRead('settings');
+              adopted._cloudAdopted = true; // 本机标记，不在上云白名单内
+              db._cryptoBridge.rawWrite('settings', adopted);
+              merged++;
+              return { merged: true, placeholder: false };
+            }
             var m = S.mergeRecord(local, remote);
             if (m.action === 'write') {
               upsertLocalRecord(db, row.entity_type, m.record);
@@ -437,15 +488,22 @@
     return false;
   }
 
+  /**
+   * 云端 settings 合并到本机（白名单隔离）。
+   * 只接受家庭共享字段 familyName/members/splitRule；
+   * currentViewer（设备视角）、tier（本机商业化模式）、encryptionEnabled/口令/PIN 等永不被云端覆盖。
+   */
+  S.applyCloudSettings = function (db, record) {
+    var s = db._cryptoBridge.rawRead('settings') || {};
+    SETTINGS_CLOUD_FIELDS.concat(['updatedAt', 'deviceId']).forEach(function (k) {
+      if (record[k] !== undefined) s[k] = record[k];
+    });
+    s._sync = 'clean';
+    db._cryptoBridge.rawWrite('settings', s);
+  };
+
   function upsertLocalRecord(db, entityType, record) {
-    if (entityType === 'settings') {
-      var s = db._cryptoBridge.rawRead('settings') || {};
-      // 合并 settings 字段（远端覆盖同名）
-      for (var k in record) { s[k] = record[k]; }
-      s._sync = 'clean';
-      db._cryptoBridge.rawWrite('settings', s);
-      return;
-    }
+    if (entityType === 'settings') { S.applyCloudSettings(db, record); return; }
     var key = ENTITY_TO_KEY[entityType];
     if (!key) return;
     var list = db._cryptoBridge.rawRead(key) || [];

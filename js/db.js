@@ -233,6 +233,25 @@
     return s.members.filter(function (m) { return m.id === id; })[0] || null;
   }
 
+  /* ---------------- F1 储蓄目标（v1.2 批次③） ----------------
+   * 挂在 settings.savingsGoal 下，随家庭设置云同步（两端一致）；
+   * 小金库不计入——由 fcSavings 取数时排除 privacyLevel=vault。 */
+
+  function getSavingsGoal() {
+    var s = read('settings');
+    return s ? (s.savingsGoal || null) : null;
+  }
+
+  function saveSavingsGoal(goal) {
+    var s = read('settings');
+    if (!s) return { ok: false, errors: ['尚未初始化'] };
+    s.savingsGoal = goal;
+    s.updatedAt = Date.now();
+    s._sync = 'dirty'; // 复用家庭设置上云（推送白名单含 savingsGoal）
+    write('settings', s);
+    return { ok: true };
+  }
+
   function getVaultOf(memberId) {
     var accs = read('accounts') || [];
     return accs.filter(function (a) { return a.type === 'vault' && a.ownerId === memberId; })[0] || null;
@@ -704,6 +723,8 @@
       write('settings', s);
     },
     findMember: findMember,
+    getSavingsGoal: getSavingsGoal,
+    saveSavingsGoal: saveSavingsGoal,
     getVaultOf: getVaultOf,
     switchViewer: switchViewer,
     getCurrentViewer: getCurrentViewer,

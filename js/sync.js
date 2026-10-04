@@ -88,7 +88,7 @@
    * settings 上云白名单（v1.1.3：家庭级共享设置才同步）
    * 本机态绝不上云：currentViewer（各看各的）、tier（版本模式演示）、encryptionEnabled（本机口令）
    */
-  var SETTINGS_CLOUD_FIELDS = ['familyName', 'members', 'splitRule'];
+  var SETTINGS_CLOUD_FIELDS = ['familyName', 'members', 'splitRule', 'savingsGoal'];
 
   /** 纯函数：构造 settings 的上云载荷（只含家庭共享字段+同步元数据，entity_id 固定 'settings'） */
   S.sanitizeSettingsForCloud = function (s) {

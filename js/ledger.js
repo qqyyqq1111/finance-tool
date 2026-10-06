@@ -18,6 +18,7 @@
   var currentMonth = null; // YYYY-MM
   var detailId = null;     // 详情弹层当前交易
   var highlightId = null;  // v1.0.1：保存/编辑成功后新行高亮
+  var filterCategory = null; // v1.2 批次④：预算卡跳转筛选
 
   /* ---------------- 工具 ---------------- */
 
@@ -116,6 +117,11 @@
     mv.visible.forEach(function (t) { rows.push({ date: t.date, tx: t }); });
     mv.placeholders.forEach(function (t) { rows.push({ date: t.date, ph: t }); });
     rows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+
+    // v1.2 批次④：预算卡点击跳明细时按分类筛选
+    if (filterCategory) {
+      rows = rows.filter(function (r) { return r.tx && r.tx.categoryId === filterCategory; });
+    }
 
     var box = $('tx-list');
     box.innerHTML = '';
@@ -279,6 +285,7 @@
       btn.addEventListener('click', function () {
         form.categoryId = c.id;
         renderCats();
+        if (window.fcBudget) fcBudget.renderFormWarn(c.id, parseFloat($('f-amount').value));
       });
       box.appendChild(btn);
     });
@@ -305,6 +312,7 @@
 
   /** 新账模式：清空表单（07-PRD §4.1 默认值） */
   L.newEntry = function () {
+    filterCategory = null; // 进入记一笔清除预算卡筛选
     var isFamily = fcDb.getSettings() && fcDb.getSettings().tier !== 'free';
     form = {
       type: 'expense', privacy: 'public', shared: true,
@@ -380,6 +388,30 @@
     if (!r.ok) { saveBtn.disabled = false; global.toast(r.errors[0]); return; }
     highlightId = form.editingId || r.record.id;
     global.toast(form.editingId ? '✓ 修改已保存' : '✓ 记好啦，已在明细列表中', 'success');
+    // v1.2 批次④：保存后若该分类预算已超支，再给一次提醒
+    if (form.type === 'expense' && window.fcBudget) {
+      var b = fcBudget.normalizeBudget(fcDb.getBudget(), fcDb.categoriesList());
+      if (b.budgets[form.categoryId]) {
+        var spent = fcBudget.monthExpenseByCat(
+          (function () {
+            var out = [];
+            var viewer = fcDb.getCurrentViewer();
+            var all = fcDb.tx.list();
+            Object.keys({ [data.date.slice(0, 7)]: 1 }).forEach(function (mk) {
+              fcPrivacy.monthView(all, viewer, mk).visible.forEach(function (t) {
+                if (t.privacy !== 'vault') out.push(t);
+              });
+            });
+            return out;
+          })(),
+          data.date.slice(0, 7)
+        );
+        var info = fcBudget.ifAddOver(b, spent, form.categoryId, 0);
+        if (info.warnLevel === 'over' || info.warnLevel === 'severe') {
+          setTimeout(function () { global.toast('该分类本月已超支 ¥' + Math.round(info.overAmount / 100), 'warn'); }, 1200);
+        }
+      }
+    }
     var wasEdit = !!form.editingId;
     global.showPage('ledger');
     if (wasEdit) L.renderLedger();
@@ -388,6 +420,17 @@
   }
 
   /* ---------------- 装配 ---------------- */
+
+  /** 预算卡跳转：按分类筛选明细（v1.2 批次④） */
+  L.filterByCategory = function (catId) {
+    filterCategory = catId;
+    L.renderLedger();
+  };
+
+  /** 清除分类筛选（进入记一笔/重渲染明细时调用） */
+  L.clearCategoryFilter = function () {
+    filterCategory = null;
+  };
 
   L.bind = function () {
     $('month-prev').addEventListener('click', prevMonth);
@@ -402,6 +445,7 @@
         form.type = b.getAttribute('data-v');
         form.categoryId = null; // 类型切换后需重选分类
         renderTypeSeg();
+        if (window.fcBudget) fcBudget.renderFormWarn(null, null);
       });
     });
     document.querySelectorAll('.f-privacy-btn').forEach(function (b) {
@@ -420,6 +464,13 @@
       renderSharedRow();
     });
     $('f-save').addEventListener('click', saveFromForm);
+    $('f-amount').addEventListener('input', function () {
+      if (form.type === 'expense' && window.fcBudget) {
+        fcBudget.renderFormWarn(form.categoryId, parseFloat($('f-amount').value));
+      } else if (window.fcBudget) {
+        fcBudget.renderFormWarn(null, null);
+      }
+    });
   };
 
   global.ledger = L;

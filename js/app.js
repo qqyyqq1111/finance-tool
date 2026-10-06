@@ -108,6 +108,19 @@
         ? '目标 ¥' + Math.round(g.targetAmount / 100).toLocaleString('zh-CN') + ' · 截止 ' + g.targetDate
         : '设置/编辑家庭共同储蓄目标与里程碑';
     }
+    if (window.fcBudget) {
+      fcBudget.render(); // v1.2 批次④ 看板预算卡
+      // 设置页入口摘要
+      var b = fcBudget.normalizeBudget(fcDb.getBudget(), fcDb.categoriesList());
+      var bSum = document.getElementById('budget-summary');
+      if (bSum) {
+        var total = 0;
+        Object.keys(b.budgets).forEach(function (id) { total += b.budgets[id]; });
+        bSum.textContent = total > 0
+          ? '本月总预算 ¥' + Math.round(total / 100).toLocaleString('zh-CN')
+          : '按分类设置每月预算，超支时自动提醒';
+      }
+    }
     if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
     if (window.fcSync && fcSync.renderBadge) fcSync.renderBadge(); // v1.1 批次⑨ 顶部同步图标
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
@@ -241,6 +254,9 @@
     settingsUI.bind();
     if (window.fcSavings) fcSavings.bind(); // v1.2 批次③：储蓄目标弹层
     document.getElementById('btn-savings-goal').addEventListener('click', function () { fcSavings.openGoalSheet(); });
+    if (window.fcBudget) fcBudget.bind(); // v1.2 批次④：预算管理弹层
+    var btnBudget = document.getElementById('btn-budget');
+    if (btnBudget) btnBudget.addEventListener('click', function () { fcBudget.openSheet(); });
     ledger.bind();
     if (window.splitUI) splitUI.bind();
     if (window.dashUI) dashUI.bind();

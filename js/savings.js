@@ -488,6 +488,24 @@
     /* ---------- 储蓄健康度 ---------- */
     var rate = activeMonths < 3 ? null : (avgIncome > 0 ? avg / avgIncome : null);
     var hlevel = V.healthLevel(rate);
+    // F1↔F4 联动：检查是否有分类连续2个月超支（docs/14 §4.1.6）
+    var overCatNote = '';
+    if (global.fcBudget) {
+      var bgt = fcBudget.normalizeBudget(fcDb.getBudget(), fcDb.categoriesList());
+      var catsAll = fcDb.categoriesList();
+      var catNameMap = {};
+      catsAll.forEach(function (c) { catNameMap[c.id] = c.name; });
+      var overKeys = [];
+      fcBudget.expenseCategories(catsAll).forEach(function (c) {
+        if ((bgt.budgets[c.id] || 0) > 0 &&
+          fcBudget.consecutiveOverMonths(bgt, txs, c.id, V.last3MonthKeys(today)) >= 2) {
+          overKeys.push(c.name);
+        }
+      });
+      if (overKeys.length) {
+        overCatNote = '<p class="text-[10px] text-rose-600 mt-1">最近' + overKeys.join('、') + '连续超支，注意控制</p>';
+      }
+    }
     var hCfg = {
       excellent: ['bg-emerald-50', 'border-emerald-200', 'text-emerald-700', '💪 优秀', '攒钱能力很强，继续保持'],
       good: ['bg-sky-50', 'border-sky-200', 'text-sky-700', '🙂 良好', '处于健康区间'],
@@ -499,7 +517,7 @@
       '<button onclick="fcSavings.openHealthSheet()" class="w-full mt-2 rounded-xl border px-3 py-2.5 flex items-center justify-between text-xs min-h-[44px] ' +
       hCfg[0] + ' ' + hCfg[1] + ' ' + hCfg[2] + '">' +
       '<span class="font-medium">' + hCfg[3] + (rate != null ? ' · 储蓄率 ' + (rate * 100).toFixed(0) + '%' : '') + '</span>' +
-      '<span class="opacity-80 text-[10px]">' + hCfg[4] + ' ›</span></button>';
+      '<span class="opacity-80 text-[10px]">' + hCfg[4] + ' ›</span></button>' + overCatNote;
 
     /* ---------- 闲置资金 ---------- */
     var balanceAll = V.netSince(txs, '0000');

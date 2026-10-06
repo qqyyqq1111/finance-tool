@@ -153,6 +153,8 @@
                            class="bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-700 focus:outline-none focus:border-indigo-400">
                 </div>
 
+                <div id="f-budget-warn" class="hidden"></div>
+
                 <button id="f-save" class="w-full bg-indigo-600 text-white rounded-xl py-3.5 font-medium active:opacity-80">保存</button>
             </section>
 
@@ -238,6 +240,9 @@
 
                 <!-- F1 储蓄目标（v1.2 批次③） -->
                 <div id="savings-card"></div>
+
+                <!-- F4 本月预算卡（v1.2 批次④） -->
+                <div id="budget-card"></div>
 
                 <!-- 分类占比（Top5，纯CSS条形图） -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-4">
@@ -398,6 +403,17 @@
                         <div>
                             <h2 class="font-semibold text-slate-800 text-sm">🎯 储蓄目标</h2>
                             <p class="text-xs text-slate-400 mt-0.5" id="savings-goal-summary">设置/编辑家庭共同储蓄目标与里程碑</p>
+                        </div>
+                        <span class="text-slate-300 text-lg">›</span>
+                    </div>
+                </div>
+
+                <!-- F4 支出预算入口（v1.2 批次④） -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                    <div class="flex items-center justify-between min-h-[44px] cursor-pointer" id="btn-budget">
+                        <div>
+                            <h2 class="font-semibold text-slate-800 text-sm">📊 支出预算</h2>
+                            <p class="text-xs text-slate-400 mt-0.5" id="budget-summary">按分类设置每月预算，超支时自动提醒</p>
                         </div>
                         <span class="text-slate-300 text-lg">›</span>
                     </div>
@@ -657,6 +673,35 @@
             </div>
         </div>
 
+        <!-- F4 预算管理弹层（v1.2 批次④） -->
+        <div id="budget-sheet" class="hidden fixed inset-0 z-[70]">
+            <div class="absolute inset-0 bg-black/40" id="budget-sheet-mask"></div>
+            <div class="absolute inset-x-0 bottom-0">
+                <div class="max-w-[480px] mx-auto bg-white rounded-t-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto">
+                    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+                    <h3 class="font-semibold text-slate-800 mb-1">支出预算</h3>
+                    <p class="text-xs text-slate-400 mb-4">家庭共同预算，保存后两端同步；小金库不计入预算执行</p>
+
+                    <div class="flex gap-2 mb-4">
+                        <button id="bud-fill-last" class="flex-1 bg-slate-100 text-slate-700 text-xs rounded-xl py-2.5 min-h-[44px] active:opacity-80">基于上月×0.9</button>
+                        <button id="bud-distribute" class="flex-1 bg-slate-100 text-slate-700 text-xs rounded-xl py-2.5 min-h-[44px] active:opacity-80">按总预算分配</button>
+                    </div>
+
+                    <div id="bud-rows" class="space-y-2 mb-4"></div>
+
+                    <label class="flex items-center gap-2 text-xs text-slate-500 mb-4 min-h-[44px]">
+                        <input id="bud-enable" type="checkbox" checked class="w-4 h-4">
+                        开启分类超支优化建议
+                    </label>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="bud-cancel" class="bg-slate-100 text-slate-600 text-sm font-medium rounded-xl py-3 min-h-[44px] active:opacity-80">取消</button>
+                        <button id="bud-save" class="bg-indigo-600 text-white text-sm font-medium rounded-xl py-3 min-h-[44px] active:opacity-80">保存预算</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- F16 切换视角隐私确认弹层（v1.2 批次②） -->
         <div id="switch-confirm" class="hidden fixed inset-0 z-[60]">
             <div class="absolute inset-0 bg-black/40" id="switch-confirm-mask"></div>
@@ -877,18 +922,19 @@
 
 <!-- Supabase 云服务（v1.1；加载失败不阻塞单机模式，cloud.available() 自动降级） -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="js/db.js?v=1.2.5"></script>
-<script src="js/ui.js?v=1.2.5"></script>
-<script src="js/cloud.js?v=1.2.5"></script>
-<script src="js/e2e.js?v=1.2.5"></script>
-<script src="js/crypto.js?v=1.2.5"></script>
-<script src="js/privacy.js?v=1.2.5"></script>
-<script src="js/ledger.js?v=1.2.5"></script>
-<script src="js/split.js?v=1.2.5"></script>
-<script src="js/dashboard.js?v=1.2.5"></script>
-<script src="js/settings.js?v=1.2.5"></script>
-<script src="js/sync.js?v=1.2.5"></script>
-<script src="js/savings.js?v=1.2.5"></script>
-<script src="js/app.js?v=1.2.5"></script>
+<script src="js/db.js?v=1.2.7"></script>
+<script src="js/ui.js?v=1.2.7"></script>
+<script src="js/cloud.js?v=1.2.7"></script>
+<script src="js/e2e.js?v=1.2.7"></script>
+<script src="js/crypto.js?v=1.2.7"></script>
+<script src="js/privacy.js?v=1.2.7"></script>
+<script src="js/ledger.js?v=1.2.7"></script>
+<script src="js/split.js?v=1.2.7"></script>
+<script src="js/dashboard.js?v=1.2.7"></script>
+<script src="js/settings.js?v=1.2.7"></script>
+<script src="js/sync.js?v=1.2.7"></script>
+<script src="js/savings.js?v=1.2.7"></script>
+<script src="js/budget.js?v=1.2.8"></script>
+<script src="js/app.js?v=1.2.7"></script>
 </body>
 </html>

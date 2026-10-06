@@ -63,6 +63,24 @@
   };
 
   /**
+   * F11 冲突判定：远端是否覆盖了本地已有的"业务记录"（用于同步后 toast 计数）
+   * - settings 是家庭协同共享记录，变更属正常，不计冲突
+   * - 占位行（_placeholder）被真记录覆盖不算冲突
+   * - 本地不存在 → 新增，不算冲突
+   * @returns {'update'|'delete'|null}
+   */
+  S.conflictType = function (local, remote, entityType) {
+    if (!local) return null;
+    if (entityType === 'settings') return null;
+    if (local._placeholder) return null;
+    if (!remote) return null;
+    var m = S.mergeRecord(local, remote);
+    if (m.action === 'write') return 'update';
+    if (m.action === 'delete') return 'delete';
+    return null;
+  };
+
+  /**
    * 分类记录的同步路由
    * @param {Object} rec - 业务记录（tx/settlement/category/settings）
    * @param {String} entityType - 'tx'|'settlement'|'category'|'settings'
@@ -362,14 +380,19 @@
         var maxTs = lastPull;
         var merged = 0;
         var placeholderCount = 0;
+        var conflictUpdated = 0; // 远端覆盖了本地已有记录（含修改/删除）
+        var conflictDeleted = 0; // 远端墓碑删除了本地已有记录
 
         // 处理 family_docs
         var famOps = famRows.map(function (row) {
           if (row.updated_at > maxTs) maxTs = row.updated_at;
           // 墓碑优先：远端已删除直接删本地（含对方私密占位行），无需也无法解密
           if (row.deleted) {
+            var existed = findLocalRecord(db, row.entity_type, row.entity_id);
             deleteLocalRecord(db, row.entity_type, row.entity_id);
             merged++;
+            var ctDel = S.conflictType(existed, { deleted: true, updatedAt: row.updated_at, deviceId: row.device_id }, row.entity_type);
+            if (ctDel === 'delete') conflictDeleted++;
             return Promise.resolve({ merged: true, placeholder: false });
           }
           var keyB64;
@@ -404,9 +427,15 @@
             if (m.action === 'write') {
               upsertLocalRecord(db, row.entity_type, m.record);
               merged++;
+              var ct1 = S.conflictType(local, remote, row.entity_type);
+              if (ct1 === 'update') conflictUpdated++;
+              else if (ct1 === 'delete') conflictDeleted++;
             } else if (m.action === 'delete') {
               deleteLocalRecord(db, row.entity_type, row.entity_id);
               merged++;
+              var ct2 = S.conflictType(local, remote, row.entity_type);
+              if (ct2 === 'delete') conflictDeleted++;
+              else if (ct2 === 'update') conflictUpdated++;
             }
             return { merged: true, placeholder: false };
           }).catch(function (e) {
@@ -430,9 +459,15 @@
             if (m.action === 'write') {
               upsertLocalRecord(db, row.entity_type, m.record);
               merged++;
+              var ct1 = S.conflictType(local, remote, row.entity_type);
+              if (ct1 === 'update') conflictUpdated++;
+              else if (ct1 === 'delete') conflictDeleted++;
             } else if (m.action === 'delete') {
               deleteLocalRecord(db, row.entity_type, row.entity_id);
               merged++;
+              var ct2 = S.conflictType(local, remote, row.entity_type);
+              if (ct2 === 'delete') conflictDeleted++;
+              else if (ct2 === 'update') conflictUpdated++;
             }
             return { merged: true };
           }).catch(function () { return { merged: false }; });
@@ -445,7 +480,7 @@
           if (global.settingsUI && global.settingsUI.renderCloud) global.settingsUI.renderCloud();
           if (global.ledgerUI && global.ledgerUI.render) global.ledgerUI.render();
           if (global.dashboardUI && global.dashboardUI.render) global.dashboardUI.render();
-          return { ok: true, pulled: merged, errors: [], placeholders: placeholderCount };
+          return { ok: true, pulled: merged, errors: [], placeholders: placeholderCount, updated: conflictUpdated, deleted: conflictDeleted };
         });
       });
     });
@@ -584,12 +619,26 @@
       return S.pullSince().then(function (pl) {
         syncing = false;
         updateSyncBadge(pl.ok ? 'ok' : 'error');
+        // F11 同步冲突提示：远端覆盖了本地已有记录 / 远端删除了本地记录
+        if (pl.ok) {
+          var upd = pl.updated || 0;
+          var del = pl.deleted || 0;
+          if (typeof global.toast === 'function') {
+            if (del > 0) {
+              global.toast('伴侣删除了 ' + del + ' 笔记录，已同步');
+            } else if (upd > 0) {
+              global.toast('有 ' + upd + ' 笔记录已从伴侣设备同步');
+            }
+          }
+        }
         return {
           ok: pl.ok,
           pushed: pr.pushed,
           pulled: pl.pulled,
           errors: pl.errors || [],
-          placeholders: pl.placeholders || 0
+          placeholders: pl.placeholders || 0,
+          updated: pl.updated || 0,
+          deleted: pl.deleted || 0
         };
       });
     }).catch(function (e) {

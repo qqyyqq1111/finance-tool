@@ -38,7 +38,7 @@
     // 明细/结算/看板页每次进入都重渲染（数据可能已变化）
     if (name === 'ledger' && window.ledger) ledger.renderLedger();
     if (name === 'split' && window.splitUI) splitUI.render();
-    if (name === 'dashboard' && window.dashUI) dashUI.render();
+    if (name === 'dashboard' && window.dashUI) { dashUI.render(); if (window.fcTrend) fcTrend.render(); }
     if (window.applyTier) applyTier();
   }
   window.showPage = showPage; // v1.0.1 修复：ledger.js 编辑/保存流程依赖全局跳页
@@ -110,7 +110,6 @@
     }
     if (window.fcBudget) {
       fcBudget.render(); // v1.2 批次④ 看板预算卡
-      // 设置页入口摘要
       var b = fcBudget.normalizeBudget(fcDb.getBudget(), fcDb.categoriesList());
       var bSum = document.getElementById('budget-summary');
       if (bSum) {
@@ -123,6 +122,7 @@
     }
     if (window.settingsUI && settingsUI.renderCloud) settingsUI.renderCloud(); // v1.1 云同步卡片
     if (window.fcSync && fcSync.renderBadge) fcSync.renderBadge(); // v1.1 批次⑨ 顶部同步图标
+    if (window.fcTrend) fcTrend.render(); // v1.2 批次⑤ 看板收支趋势卡
     if (window.ledger) ledger.renderLedger(); // 按新查看人重算明细/小金库/汇总
     if (window.splitUI) splitUI.render();     // 结算页规则文案/历史按新身份刷新
     if (window.dashUI) dashUI.render();       // 看板按新身份刷新

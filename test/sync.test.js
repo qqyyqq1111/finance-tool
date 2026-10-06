@@ -469,6 +469,31 @@ console.log('[28] applyCloudSettings — 只落共享字段，本机态不被覆
     '同步时间戳/设备位更新且标记 clean');
 })();
 
+/* ---- F11 conflictType ---- */
+(function () {
+  var local = { id: 't1', amount: 100, updatedAt: 1000, deviceId: 'A' };
+  // 远端更新（覆盖）
+  assert(fcSync.conflictType(local, { id: 't1', amount: 200, updatedAt: 2000, deviceId: 'B' }, 'tx') === 'update',
+    '远端更新本地已有tx → update');
+  // 远端删除
+  assert(fcSync.conflictType(local, { id: 't1', deleted: true, updatedAt: 2000, deviceId: 'B' }, 'tx') === 'delete',
+    '远端删除本地已有tx → delete');
+  // 本地更新（跳过）→ 非冲突
+  assert(fcSync.conflictType(local, { id: 't1', amount: 50, updatedAt: 500, deviceId: 'B' }, 'tx') === null,
+    '本地更新于远端 → 非冲突');
+  // 本地无记录 → 新增非冲突
+  assert(fcSync.conflictType(null, { id: 't2', updatedAt: 2000 }, 'tx') === null,
+    '本地无记录 → 非冲突');
+  // settings 不计冲突
+  var sLocal = { id: 'settings', updatedAt: 1000, deviceId: 'A' };
+  assert(fcSync.conflictType(sLocal, { id: 'settings', updatedAt: 2000, deviceId: 'B' }, 'settings') === null,
+    'settings 变更不计冲突');
+  // 占位行被真记录覆盖不计冲突
+  var stub = { id: 't3', _placeholder: true, updatedAt: 1000, deviceId: 'A' };
+  assert(fcSync.conflictType(stub, { id: 't3', amount: 300, updatedAt: 2000, deviceId: 'B' }, 'tx') === null,
+    '占位行被覆盖不计冲突');
+})();
+
 /* ---- summary ---- */
 console.log('\n=================================');
 console.log('sync.test.js: ' + passed + ' passed, ' + failed + ' failed (total ' + (passed + failed) + ')');

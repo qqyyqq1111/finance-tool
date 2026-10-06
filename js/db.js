@@ -252,6 +252,25 @@
     return { ok: true };
   }
 
+  /* ---------------- F4 支出预算（v1.2 批次④） ----------------
+   * 挂在 settings.budgets 下，随家庭设置云同步（两端一致）；
+   * 小金库不计入预算执行——由 fcBudget 取数时排除 privacyLevel=vault。 */
+
+  function getBudget() {
+    var s = read('settings');
+    return s ? (s.budgets || null) : null;
+  }
+
+  function saveBudget(b) {
+    var s = read('settings');
+    if (!s) return { ok: false, errors: ['尚未初始化'] };
+    s.budgets = b;
+    s.updatedAt = Date.now();
+    s._sync = 'dirty'; // 复用家庭设置上云（推送白名单含 budgets）
+    write('settings', s);
+    return { ok: true };
+  }
+
   function getVaultOf(memberId) {
     var accs = read('accounts') || [];
     return accs.filter(function (a) { return a.type === 'vault' && a.ownerId === memberId; })[0] || null;
@@ -725,6 +744,8 @@
     findMember: findMember,
     getSavingsGoal: getSavingsGoal,
     saveSavingsGoal: saveSavingsGoal,
+    getBudget: getBudget,
+    saveBudget: saveBudget,
     getVaultOf: getVaultOf,
     switchViewer: switchViewer,
     getCurrentViewer: getCurrentViewer,

@@ -172,6 +172,7 @@
 
   function prevMonth() { currentMonth = monthShift(currentMonth, -1); L.renderLedger(); }
   function nextMonth() { currentMonth = monthShift(currentMonth, 1); L.renderLedger(); }
+  L.setMonth = function (mk) { currentMonth = mk; L.renderLedger(); };
 
   function toggleVaultList() {
     var list = $('vault-list');
